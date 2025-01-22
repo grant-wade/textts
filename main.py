@@ -107,38 +107,12 @@ def play_page(page_path, voice=None, show_context=False):
             if show_context and next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
-        piper_cmd = [
-            "piper",
-            "--model",
-            str(MODELS_DIR / f"{selected_voice}.onnx"),
-            "--output-raw",
-        ]
-        aplay_cmd = ["aplay", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-c", "1"]
-
-        # Pipe Piper output to aplay with proper resource management
-        with subprocess.Popen(
-            piper_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        ) as piper_process, subprocess.Popen(
-            aplay_cmd,
-            stdin=piper_process.stdout,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ) as aplay_process:
-            # Send page text to Piper
-            try:
-                piper_process.stdin.write(cleaned_text.encode())
-                piper_process.stdin.close()
-
-                # Wait for playback to finish
-                aplay_process.wait()
-            except Exception as e:
-                # Ensure processes are terminated if an error occurs
-                piper_process.terminate()
-                aplay_process.terminate()
-                raise
+        # Generate and play audio using the new functions
+        try:
+            audio = generate_audio(cleaned_text, selected_voice)
+            play_audio(audio)
+        except Exception as e:
+            print(f"Error generating or playing audio: {e}")
     except Exception as e:
         print(f"Error playing page: {e}")
 
