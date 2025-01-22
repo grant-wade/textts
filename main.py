@@ -54,8 +54,9 @@ def play_page(page_path, voice=None):
         os.system('clear')
         with open(page_path, "r", encoding="utf-8") as f:
             page_text = f.read()
-            # Clean up text: remove single newlines, preserve paragraphs
-            cleaned_text = re.sub(r'(?<!\n)\n(?!\n)', ' ', page_text)
+            # Clean up text: remove single newlines and normalize spaces
+            cleaned_text = re.sub(r'(?<!\n)\n(?!\n)', ' ', page_text)  # Single newlines to spaces
+            cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)  # Multiple spaces/tabs to single space
             print(cleaned_text)
 
         piper_cmd = [
