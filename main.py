@@ -37,11 +37,16 @@ def get_page_context(page_path, num_sentences=2):
     """Get the first or last few sentences from a page"""
     if not os.path.exists(page_path):
         return ""
-    
+
     with open(page_path, "r", encoding="utf-8") as f:
         text = f.read()
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        return " ".join(sentences[:num_sentences] if "prev" in str(page_path) else sentences[-num_sentences:])
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        return " ".join(
+            sentences[:num_sentences]
+            if "prev" in str(page_path)
+            else sentences[-num_sentences:]
+        )
+
 
 def play_page(page_path, voice=None):
     """Play a page using Piper TTS piped to aplay"""
@@ -62,19 +67,19 @@ def play_page(page_path, voice=None):
     try:
         # Clear terminal and display page text
         os.system("clear")
-        
+
         # Extract page number from filename (format: page_XXX.txt)
-        page_num = int(Path(page_path).stem.split('_')[-1])
+        page_num = int(Path(page_path).stem.split("_")[-1])
         pages_dir = Path(page_path).parent
-        
+
         # Get previous and next page paths
         prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
         next_page = pages_dir / f"page_{page_num+1:03d}.txt"
-        
+
         # Get context from adjacent pages
         prev_context = get_page_context(prev_page)
         next_context = get_page_context(next_page, num_sentences=2)
-        
+
         with open(page_path, "r", encoding="utf-8") as f:
             page_text = f.read()
             # Clean up text: remove single newlines and normalize spaces
@@ -84,15 +89,15 @@ def play_page(page_path, voice=None):
             cleaned_text = re.sub(
                 r"[ \t]+", " ", cleaned_text
             )  # Multiple spaces/tabs to single space
-            
+
             # Display context and page text
             if prev_context:
-                print(f"\n[Previous page ending...]\n{prev_context}\n")
-            
-            print(f"\n=== Page {page_num} ===\n")
+                print(f"\n[Previous page ending...]\n{prev_context}")
+
+            print(f"=== Page {page_num} ===")
             print(cleaned_text)
-            print(f"\n=== End of Page {page_num} ===\n")
-            
+            print(f"=== End of Page {page_num} ===")
+
             if next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
