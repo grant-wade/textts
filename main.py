@@ -1,8 +1,12 @@
 import os
 import re
+import sys
 
 
-def split_book_to_pages(input_path, output_dir="book_pages"):
+def split_book_to_pages(input_path):
+    # Create output directory based on input filename
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    output_dir = f"{base_name}_pages"
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -35,4 +39,8 @@ def split_book_to_pages(input_path, output_dir="book_pages"):
 
 
 if __name__ == "__main__":
-    split_book_to_pages("1984.txt")
+    if len(sys.argv) != 2:
+        print("Usage: python main.py <input_file>")
+        sys.exit(1)
+    input_file = sys.argv[1]
+    split_book_to_pages(input_file)
