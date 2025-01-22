@@ -73,41 +73,42 @@ class AudioGenerator:
         self.stop_event = threading.Event()
         self.worker_thread = None
         self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
-        
+
     def _generate_audio_batch(self, text):
         """Generate audio for a text batch in a thread"""
         # Split text into sentences first
-        sentences = re.split(r'(?<=[.!?])\s+', text)
-        
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+
         # Process sentences in chunks that won't exceed token limit
         current_chunk = []
         current_length = 0
         max_length = 500  # Leave some room for padding
-        
+
         for sentence in sentences:
             phonemes = phonemize(sentence, self.voice_name[0])
             tokens = tokenize(phonemes)
-            
+
             # If adding this sentence would exceed the limit, process current chunk
             if current_length + len(tokens) > max_length and current_chunk:
                 # Join phonemes and tokenize the chunk
-                chunk_phonemes = ' '.join(current_chunk)
+                chunk_phonemes = " ".join(current_chunk)
                 chunk_tokens = tokenize(chunk_phonemes)
                 self._process_token_batch(chunk_tokens)
-                
+
                 # Start new chunk
                 current_chunk = []
                 current_length = 0
-                
+
             # Add sentence to current chunk
             current_chunk.append(phonemes)
             current_length += len(tokens)
-            
+
         # Process any remaining sentences
         if current_chunk:
-            chunk_phonemes = ' '.join(current_chunk)
+            chunk_phonemes = " ".join(current_chunk)
             chunk_tokens = tokenize(chunk_phonemes)
             self._process_token_batch(chunk_tokens)
+
     def _process_token_batch(self, tokens):
         """Process a batch of tokens and add to audio queue"""
         ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
@@ -118,7 +119,7 @@ class AudioGenerator:
             None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
         )[0]
         self.audio_queue.put(audio)
-            
+
     def start_generation(self, text):
         """Start audio generation in a background thread"""
         self.stop_event.clear()
@@ -126,14 +127,14 @@ class AudioGenerator:
             target=self._generate_audio_batch, args=(text,)
         )
         self.worker_thread.start()
-        
+
     def get_next_audio(self):
         """Get the next audio chunk from the queue"""
         try:
             return self.audio_queue.get(timeout=0.1)
         except queue.Empty:
             return None
-            
+
     def stop(self):
         """Stop generation and clean up"""
         self.stop_event.set()
@@ -247,8 +248,6 @@ def split_book_to_pages(input_path):
         current_file.close()
 
 
-
-
 def validate_arguments(args):
     """Validate the provided arguments"""
     if not os.path.exists(args.input_file):
@@ -289,7 +288,7 @@ def main():
         action="store_true",
         help="List all available voice models and exit",
     )
-    
+
     args = parser.parse_args()
     if args.list_voices:
         voices = get_available_voices()
