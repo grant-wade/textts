@@ -85,8 +85,17 @@ class AudioGenerator:
         max_length = 500  # Leave some room for padding
 
         for sentence in sentences:
-            phonemes = phonemize(sentence, self.voice_name[0])
-            tokens = tokenize(phonemes)
+            # Skip empty or whitespace-only sentences
+            if not sentence or sentence.isspace():
+                continue
+                
+            try:
+                phonemes = phonemize(sentence, self.voice_name[0])
+                tokens = tokenize(phonemes)
+            except Exception as e:
+                print(f"Error processing sentence: {e}")
+                print(f"Sentence: {sentence}")
+                continue
 
             # If adding this sentence would exceed the limit, process current chunk
             if current_length + len(tokens) > max_length and current_chunk:
@@ -111,14 +120,20 @@ class AudioGenerator:
 
     def _process_token_batch(self, tokens):
         """Process a batch of tokens and add to audio queue"""
-        ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
-            len(tokens)
-        ].numpy()
-        tokens = [[0, *tokens, 0]]
-        audio = self.sess.run(
-            None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
-        )[0]
-        self.audio_queue.put(audio)
+        try:
+            if not tokens:  # Skip empty token batches
+                return
+                
+            ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
+                len(tokens)
+            ].numpy()
+            tokens = [[0, *tokens, 0]]
+            audio = self.sess.run(
+                None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
+            )[0]
+            self.audio_queue.put(audio)
+        except Exception as e:
+            print(f"Error processing token batch: {e}")
 
     def start_generation(self, text):
         """Start audio generation in a background thread"""
