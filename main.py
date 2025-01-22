@@ -130,6 +130,11 @@ def parse_arguments():
         "page", nargs="?", type=int, help="Page number to play (optional)"
     )
     parser.add_argument("--voice", help="Voice to use for TTS (optional)")
+    parser.add_argument(
+        "--continue", 
+        action="store_true",
+        help="Continue playing subsequent pages after the specified page"
+    )
 
     # Add available voices to help text
     voices = get_available_voices()
@@ -168,13 +173,24 @@ def main():
     if args.page is not None:
         base_name = os.path.splitext(os.path.basename(args.input_file))[0]
         output_dir = f"{base_name}_pages"
-        page_path = os.path.join(output_dir, f"page_{args.page:03d}.txt")
-
-        if not os.path.exists(page_path):
-            print(f"Error: Page {args.page} not found")
-            sys.exit(1)
-
-        play_page(page_path, args.voice)
+        
+        # Play pages sequentially if --continue is set
+        if getattr(args, 'continue', False):
+            current_page = args.page
+            while True:
+                page_path = os.path.join(output_dir, f"page_{current_page:03d}.txt")
+                if not os.path.exists(page_path):
+                    break
+                print(f"Playing page {current_page}...")
+                play_page(page_path, args.voice)
+                current_page += 1
+        else:
+            # Play just the specified page
+            page_path = os.path.join(output_dir, f"page_{args.page:03d}.txt")
+            if not os.path.exists(page_path):
+                print(f"Error: Page {args.page} not found")
+                sys.exit(1)
+            play_page(page_path, args.voice)
 
 
 if __name__ == "__main__":
