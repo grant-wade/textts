@@ -44,12 +44,9 @@ def play_audio(audio, sample_rate=22050):
         # Normalize audio to prevent clipping
         audio /= np.max(np.abs(audio))
 
-        # Play audio non-blocking
-        sd.play(audio, samplerate=sample_rate, blocking=False)
-        
-        # Calculate duration and wait until audio is mostly done
-        duration = len(audio) / sample_rate
-        time.sleep(max(0, duration - 0.1))  # Wait until 100ms before end
+        # Play audio and wait for it to finish
+        sd.play(audio, samplerate=sample_rate)
+        sd.wait()  # Block until audio is done
     except Exception as e:
         print(f"Error playing audio: {e}")
 
