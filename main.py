@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-import subprocess
 import argparse
 import numpy as np
 from pathlib import Path
@@ -9,7 +8,6 @@ from kokoro.kokoro import phonemize, tokenize
 from onnxruntime import InferenceSession
 import torch
 import sounddevice as sd
-import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
