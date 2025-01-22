@@ -51,12 +51,16 @@ def play_page(page_path, voice=None):
 
     try:
         # Clear terminal and display page text
-        os.system('clear')
+        os.system("clear")
         with open(page_path, "r", encoding="utf-8") as f:
             page_text = f.read()
             # Clean up text: remove single newlines and normalize spaces
-            cleaned_text = re.sub(r'(?<!\n)\n(?!\n)', ' ', page_text)  # Single newlines to spaces
-            cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)  # Multiple spaces/tabs to single space
+            cleaned_text = re.sub(
+                r"(?<!\n)\n(?!\n)", " ", page_text
+            )  # Single newlines to spaces
+            cleaned_text = re.sub(
+                r"[ \t]+", " ", cleaned_text
+            )  # Multiple spaces/tabs to single space
             print(cleaned_text)
 
         piper_cmd = [
@@ -69,19 +73,19 @@ def play_page(page_path, voice=None):
 
         # Pipe Piper output to aplay with proper resource management
         with subprocess.Popen(
-            piper_cmd, 
-            stdin=subprocess.PIPE, 
+            piper_cmd,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         ) as piper_process, subprocess.Popen(
-            aplay_cmd, 
+            aplay_cmd,
             stdin=piper_process.stdout,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         ) as aplay_process:
             # Send page text to Piper
             try:
-                piper_process.stdin.write(page_text.encode())
+                piper_process.stdin.write(cleaned_text.encode())
                 piper_process.stdin.close()
 
                 # Wait for playback to finish
@@ -145,9 +149,9 @@ def parse_arguments():
     )
     parser.add_argument("--voice", help="Voice to use for TTS (optional)")
     parser.add_argument(
-        "--continue", 
+        "--continue",
         action="store_true",
-        help="Continue playing subsequent pages after the specified page"
+        help="Continue playing subsequent pages after the specified page",
     )
 
     # Add available voices to help text
@@ -187,9 +191,9 @@ def main():
     if args.page is not None:
         base_name = os.path.splitext(os.path.basename(args.input_file))[0]
         output_dir = f"{base_name}_pages"
-        
+
         # Play pages sequentially if --continue is set
-        if getattr(args, 'continue', False):
+        if getattr(args, "continue", False):
             current_page = args.page
             while True:
                 page_path = os.path.join(output_dir, f"page_{current_page:03d}.txt")
