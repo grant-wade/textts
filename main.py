@@ -229,6 +229,8 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
                     audio_gen.stop()
                     audio_gen = next_audio_gen
                     next_audio_gen = None
+                    # Display the new page content
+                    display_page(next_page_path, show_context)
             elif not audio_gen.worker_thread.is_alive():
                 break
             time.sleep(0.01)
