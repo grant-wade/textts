@@ -3,51 +3,43 @@ import re
 import sys
 import subprocess
 import argparse
-import numpy as np
 from pathlib import Path
-from kokoro.kokoro import phonemize, tokenize
-from onnxruntime import InferenceSession
+from kokoro.kokoro import generate
+from kokoro.models import build_model
+
 import torch
-import sounddevice as sd
-import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-
+MODEL = build_model("kokoro/kokoro-v0_19.pth", device=device)
 VOICE_NAME = "af"
 VOICEPACK = torch.load(f"kokoro/voices/{VOICE_NAME}.pt", weights_only=True).to(device)
 
 # Configuration
-KOKORO_PATH = Path.home() / "LLM" / "reader" / "kokoro"
-MODELS_DIR = KOKORO_PATH / "voices"
+PIPER_PATH = Path.home() / "LLM" / "piper_amd64" / "piper"
+MODELS_DIR = Path.home() / "Downloads"
 
 
 def get_available_voices():
     """Get list of available Piper voices"""
     voices = []
     if MODELS_DIR.exists():
-        for model in MODELS_DIR.glob("*.pt"):
+        for model in MODELS_DIR.glob("*.onnx"):
             voices.append(model.stem)
     return voices
 
 
-def play_audio(audio, sample_rate=22050):
-    """Play audio array using sounddevice"""
+def check_piper_installed():
+    """Check if Piper is installed and available"""
     try:
-        # Ensure audio is in the correct format (mono, float32)
-        if audio.ndim > 1:
-            audio = np.mean(audio, axis=1)  # Convert to mono if stereo
-        if audio.dtype != np.float32:
-            audio = audio.astype(np.float32)
-
-        # Normalize audio to prevent clipping
-        audio /= np.max(np.abs(audio))
-
-        # Play audio
-        sd.play(audio, samplerate=sample_rate)
-        sd.wait()  # Wait until audio is finished playing
-    except Exception as e:
-        print(f"Error playing audio: {e}")
+        subprocess.run(
+            ["piper", "--version"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
 
 
 def get_page_context(page_path, num_sentences=2):
@@ -66,35 +58,28 @@ def get_page_context(page_path, num_sentences=2):
 
 
 def generate_audio(text, voice_name):
-    # tokenize the input with phonemize() and tokenize()
-    phonemes = phonemize(text, voice_name[0])
-    tokens = tokenize(phonemes)
-    # split the tokens into batches of 510 max tokens
-    batch_size = 510
-    token_batches = [
-        tokens[i : i + batch_size] for i in range(0, len(tokens), batch_size)
-    ]
-    sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
+    # this generates 24khz audio
+    audio, _ = generate(MODEL, text, VOICEPACK, lang=voice_name)
+    return audio
 
-    audios = []
-    for token_batch in token_batches:
-        ref_s = torch.load(f"kokoro/voices/{voice_name}.pt", weights_only=True)[
-            len(token_batch)
-        ].numpy()
-        tokens = [[0, *token_batch, 0]]
-        audio = sess.run(
-            None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
-        )[0]
-        audios.append(audio)
-    return audios
+
+def play_audio(audio):
+    # this plays audio
+    handle = subprocess.run(
+        ["aplay", "-r", "24000", "-f", "S16_LE", "-t", "raw", "-c", "1"], input=audio
+    )
 
 
 def play_page(page_path, voice=None, show_context=False):
     """Play a page using Piper TTS piped to aplay"""
+    if not check_piper_installed():
+        print("Error: Piper TTS is not installed or not in PATH")
+        print("Please install Piper first: https://github.com/rhasspy/piper")
+        return
 
     voices = get_available_voices()
     if not voices:
-        print("Error: No voices found. Please download voices to:")
+        print("Error: No Piper voices found. Please download voices to:")
         print(MODELS_DIR)
         return
 
@@ -103,7 +88,7 @@ def play_page(page_path, voice=None, show_context=False):
 
     try:
         # Clear terminal and display page text
-        # os.system("clear")
+        os.system("clear")
 
         # Extract page number from filename (format: page_XXX.txt)
         page_num = int(Path(page_path).stem.split("_")[-1])
@@ -140,11 +125,38 @@ def play_page(page_path, voice=None, show_context=False):
             if show_context and next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
-        # Generate and play audio using the new functions
-        audios = generate_audio(cleaned_text, selected_voice)
-        print("Audio Clips: ", len(audios))
-        for audio in audios:
-            play_audio(audio)
+        piper_cmd = [
+            "piper",
+            "--model",
+            str(MODELS_DIR / f"{selected_voice}.onnx"),
+            "--output-raw",
+        ]
+        aplay_cmd = ["aplay", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-c", "1"]
+
+        # Pipe Piper output to aplay with proper resource management
+        with subprocess.Popen(
+            piper_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        ) as piper_process, subprocess.Popen(
+            aplay_cmd,
+            stdin=piper_process.stdout,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ) as aplay_process:
+            # Send page text to Piper
+            try:
+                piper_process.stdin.write(cleaned_text.encode())
+                piper_process.stdin.close()
+
+                # Wait for playback to finish
+                aplay_process.wait()
+            except Exception as e:
+                # Ensure processes are terminated if an error occurs
+                piper_process.terminate()
+                aplay_process.terminate()
+                raise
     except Exception as e:
         print(f"Error playing page: {e}")
 
