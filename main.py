@@ -206,13 +206,11 @@ def parse_arguments():
         action="store_true",
         help="Show context from adjacent pages",
     )
-
-    # Add available voices to help text
-    voices = get_available_voices()
-    if voices:
-        parser.epilog = "Available voices:\n  " + "\n  ".join(voices)
-    else:
-        parser.epilog = "No voices found. Please download voices to: " + str(MODELS_DIR)
+    parser.add_argument(
+        "--list-voices",
+        action="store_true",
+        help="List all available voice models and exit",
+    )
 
     return parser.parse_args()
 
@@ -235,6 +233,16 @@ def validate_arguments(args):
 def main():
     """Main entry point for the script"""
     args = parse_arguments()
+    if args.list_voices:
+        voices = get_available_voices()
+        if voices:
+            print("Available voices:")
+            for voice in voices:
+                print(f"  {voice}")
+        else:
+            print(f"No voices found. Please download voices to: {MODELS_DIR}")
+        sys.exit(0)
+
     validate_arguments(args)
 
     # Split the book into pages
