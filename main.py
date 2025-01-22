@@ -154,7 +154,7 @@ def display_page(page_path, show_context=False):
             # Get context from adjacent pages
             prev_context = get_page_context(prev_page)
             next_context = get_page_context(next_page, num_sentences=2)
-        
+
         page_text = f.read()
         # Clean up text - preserve paragraph breaks but normalize other whitespace
         cleaned_text = re.sub(
@@ -177,8 +177,9 @@ def display_page(page_path, show_context=False):
 
         if show_context and next_context:
             print(f"\n[Next page starting...]\n{next_context}\n")
-    
+
     return cleaned_text
+
 
 def play_book(input_path, voice=None, show_context=False):
     """Stream and play a book using TTS"""
@@ -191,10 +192,10 @@ def play_book(input_path, voice=None, show_context=False):
     # Use first voice by default if none specified
     selected_voice = voice if voice else voices[0]
     audio_gen = AudioGenerator(selected_voice)
-    
+
     # Buffer for upcoming sentences and their audio
     sentence_buffer = queue.Queue(maxsize=5)  # Keep 5 sentences ahead
-    audio_buffer = queue.Queue(maxsize=5)     # Keep 5 audio chunks ahead
+    audio_buffer = queue.Queue(maxsize=5)  # Keep 5 audio chunks ahead
     stop_event = threading.Event()
 
     def buffer_sentences():
@@ -203,7 +204,7 @@ def play_book(input_path, voice=None, show_context=False):
             if stop_event.is_set():
                 break
             sentence_buffer.put(sentence)
-            
+
             # Start generating audio for this sentence
             audio_gen.start_generation(sentence)
             while True:
@@ -214,9 +215,9 @@ def play_book(input_path, voice=None, show_context=False):
                 elif not audio_gen.worker_thread.is_alive():
                     break
                 time.sleep(0.01)
-                
+
         sentence_buffer.put(None)  # Signal end of stream
-        audio_buffer.put(None)     # Signal end of audio
+        audio_buffer.put(None)  # Signal end of audio
 
     # Start buffering sentences and audio in background
     buffer_thread = threading.Thread(target=buffer_sentences)
@@ -228,10 +229,10 @@ def play_book(input_path, voice=None, show_context=False):
             sentence = sentence_buffer.get()
             if sentence is None:  # End of stream
                 break
-                
+
             # Display current sentence
             print(f"\n{sentence}\n")
-            
+
             # Play pre-generated audio
             audio = audio_buffer.get()
             if audio is not None:
@@ -261,7 +262,7 @@ def stream_sentences(input_path):
             for sentence in sentences:
                 if sentence.strip():  # Skip empty sentences
                     # Remove extra newlines while preserving sentence structure
-                    cleaned = re.sub(r"\n+", " ", sentence.strip())
+                    cleaned = re.sub(r"\n+", "", sentence.strip())
                     yield cleaned
         # Yield any remaining text
         if buffer.strip():
