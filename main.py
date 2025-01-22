@@ -260,10 +260,12 @@ def stream_sentences(input_path):
             buffer = sentences.pop(-1) if len(sentences) > 1 else buffer
             for sentence in sentences:
                 if sentence.strip():  # Skip empty sentences
-                    yield sentence.strip()
+                    # Remove extra newlines while preserving sentence structure
+                    cleaned = re.sub(r"\n+", " ", sentence.strip())
+                    yield cleaned
         # Yield any remaining text
         if buffer.strip():
-            yield buffer.strip()
+            yield re.sub(r"\n+", " ", buffer.strip())
 
 
 def validate_arguments(args):
