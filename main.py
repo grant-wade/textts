@@ -180,8 +180,8 @@ def display_page(page_path, show_context=False):
     
     return cleaned_text
 
-def play_page(page_path, voice=None, show_context=False, next_page_path=None):
-    """Play a page using Piper TTS piped to aplay"""
+def play_book(input_path, voice=None, show_context=False):
+    """Stream and play a book using TTS"""
     voices = get_available_voices()
     if not voices:
         print("Error: No voices found. Please download voices to:")
@@ -191,49 +191,42 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
     # Use first voice by default if none specified
     selected_voice = voice if voice else voices[0]
     audio_gen = AudioGenerator(selected_voice)
-    next_audio_gen = AudioGenerator(selected_voice) if next_page_path else None
+    
+    # Buffer for upcoming sentences
+    sentence_buffer = queue.Queue(maxsize=5)  # Keep 5 sentences ahead
+    stop_event = threading.Event()
+
+    def buffer_sentences():
+        """Fill the sentence buffer"""
+        for sentence in stream_sentences(input_path):
+            if stop_event.is_set():
+                break
+            sentence_buffer.put(sentence)
+        sentence_buffer.put(None)  # Signal end of stream
+
+    # Start buffering sentences in background
+    buffer_thread = threading.Thread(target=buffer_sentences)
+    buffer_thread.start()
 
     try:
-        # Display the page content
-        cleaned_text = display_page(page_path, show_context)
-
-        # Start audio generation in background
-        audio_gen.start_generation(cleaned_text)
-        print("Generating audio... (press Ctrl+C to stop)")
-
-        # If we have a next page, start preloading its audio
-        if next_page_path:
-            with open(next_page_path, "r", encoding="utf-8") as f:
-                next_text = f.read()
-                next_audio_gen.start_generation(next_text)
-
-        # Play audio chunks as they become available
+        print("Starting playback... (press Ctrl+C to stop)")
         while True:
-            audio = audio_gen.get_next_audio()
-            if audio is not None:
-                play_audio(audio)
-
-                # If we're near the end of current audio and have next page ready
-                if (
-                    next_audio_gen
-                    and audio_gen.audio_queue.qsize() < 2
-                    and not next_audio_gen.audio_queue.empty()
-                ):
-                    # Wait for current audio to finish playing
-                    while not audio_gen.audio_queue.empty():
-                        audio = audio_gen.get_next_audio()
-                        if audio is not None:
-                            play_audio(audio)
-                    
-                    # Switch to next page's audio
-                    audio_gen.stop()
-                    audio_gen = next_audio_gen
-                    next_audio_gen = None
-                    # Display the new page content
-                    display_page(next_page_path, show_context)
-            elif not audio_gen.worker_thread.is_alive():
+            sentence = sentence_buffer.get()
+            if sentence is None:  # End of stream
                 break
-            time.sleep(0.01)
+                
+            # Display current sentence
+            print(f"\n{sentence}\n")
+            
+            # Generate and play audio
+            audio_gen.start_generation(sentence)
+            while True:
+                audio = audio_gen.get_next_audio()
+                if audio is not None:
+                    play_audio(audio)
+                elif not audio_gen.worker_thread.is_alive():
+                    break
+                time.sleep(0.01)
 
     except KeyboardInterrupt:
         print("\nStopping playback...")
@@ -243,43 +236,25 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
         audio_gen.stop()
 
 
-def split_book_to_pages(input_path):
-    # Create output directory based on input filename
-    base_name = os.path.splitext(os.path.basename(input_path))[0]
-    output_dir = f"{base_name}_pages"
-    # Create the output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Open the input file for reading
-    with open(input_path, "r", encoding="utf-8") as infile:
-        lines = infile.readlines()
-
-    current_page = None
-    current_file = None
-    page_pattern = re.compile(r"^\d+\s*$")
-
-    for line in lines:
-        if page_pattern.match(line):
-            # Close the current file if it exists
-            if current_file is not None:
-                current_file.close()
-            # Increment page number
-            current_page = 0 if current_page is None else current_page + 1
-            # Create new filename with leading zeros to maintain order
-            filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
-            current_file = open(filename, "w", encoding="utf-8")
-        else:
-            # If we haven't found the first page marker yet, create page_000
-            if current_page is None:
-                current_page = 0
-                filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
-                current_file = open(filename, "w", encoding="utf-8")
-            if current_file is not None:
-                current_file.write(line)
-
-    # Close the last file if it's open
-    if current_file is not None:
-        current_file.close()
+def stream_sentences(input_path):
+    """Stream sentences from input file"""
+    with open(input_path, "r", encoding="utf-8") as f:
+        buffer = ""
+        while True:
+            chunk = f.read(4096)  # Read in chunks
+            if not chunk:
+                break
+            buffer += chunk
+            # Split on sentence boundaries
+            sentences = re.split(r"(?<=[.!?])\s+", buffer)
+            # Keep last partial sentence in buffer
+            buffer = sentences.pop(-1) if len(sentences) > 1 else buffer
+            for sentence in sentences:
+                if sentence.strip():  # Skip empty sentences
+                    yield sentence.strip()
+        # Yield any remaining text
+        if buffer.strip():
+            yield buffer.strip()
 
 
 def validate_arguments(args):
@@ -339,39 +314,7 @@ def main():
 
     if not args.list_voices:
         validate_arguments(args)
-        # Split the book into pages
-    split_book_to_pages(args.input_file)
-
-    # If a page number was provided, play that page
-    if args.page is not None:
-        base_name = os.path.splitext(os.path.basename(args.input_file))[0]
-        output_dir = f"{base_name}_pages"
-
-        # Play pages sequentially if --continue is set
-        if getattr(args, "continue", False):
-            current_page = args.page
-            while True:
-                page_path = os.path.join(output_dir, f"page_{current_page:03d}.txt")
-                if not os.path.exists(page_path):
-                    break
-                # Get next page path if it exists
-                next_page_path = os.path.join(
-                    output_dir, f"page_{current_page+1:03d}.txt"
-                )
-                next_page_path = (
-                    next_page_path if os.path.exists(next_page_path) else None
-                )
-
-                print(f"Playing page {current_page}...")
-                play_page(page_path, args.voice, args.context, next_page_path)
-                current_page += 1
-        else:
-            # Play just the specified page
-            page_path = os.path.join(output_dir, f"page_{args.page:03d}.txt")
-            if not os.path.exists(page_path):
-                print(f"Error: Page {args.page} not found")
-                sys.exit(1)
-            play_page(page_path, args.voice, args.context)
+        play_book(args.input_file, args.voice, args.context)
 
 
 if __name__ == "__main__":
