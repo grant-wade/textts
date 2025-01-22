@@ -8,6 +8,9 @@ from kokoro.kokoro import phonemize, tokenize
 from onnxruntime import InferenceSession
 import torch
 import sounddevice as sd
+import threading
+import queue
+import time
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -63,33 +66,61 @@ def get_page_context(page_path, num_sentences=2):
         )
 
 
-def generate_audio(text, voice_name):
-    # tokenize the input with phonemize() and tokenize()
-    phonemes = phonemize(text, voice_name[0])
-    tokens = tokenize(phonemes)
-    # split the tokens into batches of 510 max tokens
-    batch_size = 510
-    token_batches = [
-        tokens[i : i + batch_size] for i in range(0, len(tokens), batch_size)
-    ]
-    sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
-
-    audios = []
-    for token_batch in token_batches:
-        ref_s = torch.load(f"kokoro/voices/{voice_name}.pt", weights_only=True)[
-            len(token_batch)
-        ].numpy()
-        tokens = [[0, *token_batch, 0]]
-        audio = sess.run(
-            None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
-        )[0]
-        audios.append(audio)
-    return audios
+class AudioGenerator:
+    def __init__(self, voice_name):
+        self.voice_name = voice_name
+        self.audio_queue = queue.Queue()
+        self.stop_event = threading.Event()
+        self.worker_thread = None
+        self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
+        
+    def _generate_audio_batch(self, text):
+        """Generate audio for a text batch in a thread"""
+        phonemes = phonemize(text, self.voice_name[0])
+        tokens = tokenize(phonemes)
+        batch_size = 510
+        token_batches = [
+            tokens[i : i + batch_size] for i in range(0, len(tokens), batch_size)
+        ]
+        
+        for token_batch in token_batches:
+            if self.stop_event.is_set():
+                break
+            ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
+                len(token_batch)
+            ].numpy()
+            tokens = [[0, *token_batch, 0]]
+            audio = self.sess.run(
+                None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
+            )[0]
+            self.audio_queue.put(audio)
+            
+    def start_generation(self, text):
+        """Start audio generation in a background thread"""
+        self.stop_event.clear()
+        self.worker_thread = threading.Thread(
+            target=self._generate_audio_batch, args=(text,)
+        )
+        self.worker_thread.start()
+        
+    def get_next_audio(self):
+        """Get the next audio chunk from the queue"""
+        try:
+            return self.audio_queue.get(timeout=0.1)
+        except queue.Empty:
+            return None
+            
+    def stop(self):
+        """Stop generation and clean up"""
+        self.stop_event.set()
+        if self.worker_thread and self.worker_thread.is_alive():
+            self.worker_thread.join()
+        while not self.audio_queue.empty():
+            self.audio_queue.get()
 
 
 def play_page(page_path, voice=None, show_context=False):
     """Play a page using Piper TTS piped to aplay"""
-
     voices = get_available_voices()
     if not voices:
         print("Error: No voices found. Please download voices to:")
@@ -98,11 +129,9 @@ def play_page(page_path, voice=None, show_context=False):
 
     # Use first voice by default if none specified
     selected_voice = voice if voice else voices[0]
+    audio_gen = AudioGenerator(selected_voice)
 
     try:
-        # Clear terminal and display page text
-        # os.system("clear")
-
         # Extract page number from filename (format: page_XXX.txt)
         page_num = int(Path(page_path).stem.split("_")[-1])
         pages_dir = Path(page_path).parent
@@ -117,16 +146,12 @@ def play_page(page_path, voice=None, show_context=False):
                 prev_context = get_page_context(prev_page)
                 next_context = get_page_context(next_page, num_sentences=2)
             page_text = f.read()
-            # Clean up text: remove single newlines, normalize spaces, and strip whitespace
-            cleaned_text = re.sub(
-                r"(?<!\n)\n(?!\n)", " ", page_text
-            )  # Single newlines to spaces
-            cleaned_text = re.sub(
-                r"[ \t]+", " ", cleaned_text
-            )  # Multiple spaces/tabs to single space
-            cleaned_text = cleaned_text.strip()  # Remove leading/trailing whitespace
+            # Clean up text
+            cleaned_text = re.sub(r"(?<!\n)\n(?!\n)", " ", page_text)
+            cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)
+            cleaned_text = cleaned_text.strip()
 
-            # Display page text with optional context and padding
+            # Display page text with optional context
             if show_context:
                 if prev_context:
                     print(f"\n[Previous page ending...]\n{prev_context}\n")
@@ -138,13 +163,25 @@ def play_page(page_path, voice=None, show_context=False):
             if show_context and next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
-        # Generate and play audio using the new functions
-        audios = generate_audio(cleaned_text, selected_voice)
-        print("Audio Clips: ", len(audios))
-        for audio in audios:
-            play_audio(audio)
+        # Start audio generation in background
+        audio_gen.start_generation(cleaned_text)
+        print("Generating audio... (press Ctrl+C to stop)")
+
+        # Play audio chunks as they become available
+        while True:
+            audio = audio_gen.get_next_audio()
+            if audio is not None:
+                play_audio(audio)
+            elif not audio_gen.worker_thread.is_alive():
+                break
+            time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print("\nStopping playback...")
     except Exception as e:
         print(f"Error playing page: {e}")
+    finally:
+        audio_gen.stop()
 
 
 def split_book_to_pages(input_path):
