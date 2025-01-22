@@ -34,7 +34,6 @@ def split_book_to_pages(input_path):
                 current_page = 0
                 filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
                 current_file = open(filename, "w", encoding="utf-8")
-        else:
             if current_file is not None:
                 current_file.write(line)
 
