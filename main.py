@@ -108,10 +108,6 @@ class AudioGenerator:
             chunk_phonemes = ' '.join(current_chunk)
             chunk_tokens = tokenize(chunk_phonemes)
             self._process_token_batch(chunk_tokens)
-        
-        for token_batch in token_batches:
-            if self.stop_event.is_set():
-                break
     def _process_token_batch(self, tokens):
         """Process a batch of tokens and add to audio queue"""
         ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
