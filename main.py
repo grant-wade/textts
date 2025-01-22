@@ -144,7 +144,7 @@ class AudioGenerator:
             self.audio_queue.get()
 
 
-def play_page(page_path, voice=None, show_context=False):
+def play_page(page_path, voice=None, show_context=False, next_page_path=None):
     """Play a page using Piper TTS piped to aplay"""
     voices = get_available_voices()
     if not voices:
@@ -155,6 +155,7 @@ def play_page(page_path, voice=None, show_context=False):
     # Use first voice by default if none specified
     selected_voice = voice if voice else voices[0]
     audio_gen = AudioGenerator(selected_voice)
+    next_audio_gen = AudioGenerator(selected_voice) if next_page_path else None
 
     try:
         # Extract page number from filename (format: page_XXX.txt)
@@ -192,11 +193,26 @@ def play_page(page_path, voice=None, show_context=False):
         audio_gen.start_generation(cleaned_text)
         print("Generating audio... (press Ctrl+C to stop)")
 
+        # If we have a next page, start preloading its audio
+        if next_page_path:
+            with open(next_page_path, "r", encoding="utf-8") as f:
+                next_text = f.read()
+                next_audio_gen.start_generation(next_text)
+
         # Play audio chunks as they become available
         while True:
             audio = audio_gen.get_next_audio()
             if audio is not None:
                 play_audio(audio)
+                
+                # If we're near the end of current audio and have next page ready
+                if (next_audio_gen and 
+                    audio_gen.audio_queue.qsize() < 2 and 
+                    not next_audio_gen.audio_queue.empty()):
+                    # Switch to next page's audio
+                    audio_gen.stop()
+                    audio_gen = next_audio_gen
+                    next_audio_gen = None
             elif not audio_gen.worker_thread.is_alive():
                 break
             time.sleep(0.1)
@@ -320,8 +336,12 @@ def main():
                 page_path = os.path.join(output_dir, f"page_{current_page:03d}.txt")
                 if not os.path.exists(page_path):
                     break
+                # Get next page path if it exists
+                next_page_path = os.path.join(output_dir, f"page_{current_page+1:03d}.txt")
+                next_page_path = next_page_path if os.path.exists(next_page_path) else None
+                
                 print(f"Playing page {current_page}...")
-                play_page(page_path, args.voice, args.context)
+                play_page(page_path, args.voice, args.context, next_page_path)
                 current_page += 1
         else:
             # Play just the specified page
