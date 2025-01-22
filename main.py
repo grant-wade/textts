@@ -86,9 +86,9 @@ class AudioGenerator:
 
         for sentence in sentences:
             # Skip empty or whitespace-only sentences
-            if not sentence or sentence.isspace():
+            if not sentence or sentence.isspace() or sentence.strip():
                 continue
-                
+
             try:
                 phonemes = phonemize(sentence, self.voice_name[0])
                 tokens = tokenize(phonemes)
@@ -123,10 +123,10 @@ class AudioGenerator:
         try:
             if not tokens:  # Skip empty token batches
                 return
-                
-            ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
-                len(tokens)
-            ].numpy()
+
+            ref_s = torch.load(
+                f"kokoro/voices/{self.voice_name}.pt", weights_only=True
+            )[len(tokens)].numpy()
             tokens = [[0, *tokens, 0]]
             audio = self.sess.run(
                 None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
@@ -219,11 +219,13 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
             audio = audio_gen.get_next_audio()
             if audio is not None:
                 play_audio(audio)
-                
+
                 # If we're near the end of current audio and have next page ready
-                if (next_audio_gen and 
-                    audio_gen.audio_queue.qsize() < 2 and 
-                    not next_audio_gen.audio_queue.empty()):
+                if (
+                    next_audio_gen
+                    and audio_gen.audio_queue.qsize() < 2
+                    and not next_audio_gen.audio_queue.empty()
+                ):
                     # Switch to next page's audio
                     audio_gen.stop()
                     audio_gen = next_audio_gen
@@ -352,9 +354,13 @@ def main():
                 if not os.path.exists(page_path):
                     break
                 # Get next page path if it exists
-                next_page_path = os.path.join(output_dir, f"page_{current_page+1:03d}.txt")
-                next_page_path = next_page_path if os.path.exists(next_page_path) else None
-                
+                next_page_path = os.path.join(
+                    output_dir, f"page_{current_page+1:03d}.txt"
+                )
+                next_page_path = (
+                    next_page_path if os.path.exists(next_page_path) else None
+                )
+
                 print(f"Playing page {current_page}...")
                 play_page(page_path, args.voice, args.context, next_page_path)
                 current_page += 1
