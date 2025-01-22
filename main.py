@@ -79,44 +79,20 @@ class AudioGenerator:
         # Split text into sentences first
         sentences = re.split(r"(?<=[.!?])\s+", text)
 
-        # Process sentences in chunks that won't exceed token limit
-        current_chunk = []
-        current_length = 0
-        max_length = 500  # Leave some room for padding
-
         for sentence in sentences:
             # Skip empty or whitespace-only sentences
-            if not sentence or sentence.isspace() or sentence.strip():
+            if not sentence or sentence.isspace():
                 continue
 
             try:
+                # Process each sentence individually
                 phonemes = phonemize(sentence, self.voice_name[0])
                 tokens = tokenize(phonemes)
+                self._process_token_batch(tokens)
             except Exception as e:
                 print(f"Error processing sentence: {e}")
                 print(f"Sentence: {sentence}")
                 continue
-
-            # If adding this sentence would exceed the limit, process current chunk
-            if current_length + len(tokens) > max_length and current_chunk:
-                # Join phonemes and tokenize the chunk
-                chunk_phonemes = " ".join(current_chunk)
-                chunk_tokens = tokenize(chunk_phonemes)
-                self._process_token_batch(chunk_tokens)
-
-                # Start new chunk
-                current_chunk = []
-                current_length = 0
-
-            # Add sentence to current chunk
-            current_chunk.append(phonemes)
-            current_length += len(tokens)
-
-        # Process any remaining sentences
-        if current_chunk:
-            chunk_phonemes = " ".join(current_chunk)
-            chunk_tokens = tokenize(chunk_phonemes)
-            self._process_token_batch(chunk_tokens)
 
     def _process_token_batch(self, tokens):
         """Process a batch of tokens and add to audio queue"""
