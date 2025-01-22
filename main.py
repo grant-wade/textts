@@ -192,19 +192,33 @@ def play_book(input_path, voice=None, show_context=False):
     selected_voice = voice if voice else voices[0]
     audio_gen = AudioGenerator(selected_voice)
     
-    # Buffer for upcoming sentences
+    # Buffer for upcoming sentences and their audio
     sentence_buffer = queue.Queue(maxsize=5)  # Keep 5 sentences ahead
+    audio_buffer = queue.Queue(maxsize=5)     # Keep 5 audio chunks ahead
     stop_event = threading.Event()
 
     def buffer_sentences():
-        """Fill the sentence buffer"""
+        """Fill the sentence buffer and pre-generate audio"""
         for sentence in stream_sentences(input_path):
             if stop_event.is_set():
                 break
             sentence_buffer.put(sentence)
+            
+            # Start generating audio for this sentence
+            audio_gen.start_generation(sentence)
+            while True:
+                audio = audio_gen.get_next_audio()
+                if audio is not None:
+                    audio_buffer.put(audio)
+                    break
+                elif not audio_gen.worker_thread.is_alive():
+                    break
+                time.sleep(0.01)
+                
         sentence_buffer.put(None)  # Signal end of stream
+        audio_buffer.put(None)     # Signal end of audio
 
-    # Start buffering sentences in background
+    # Start buffering sentences and audio in background
     buffer_thread = threading.Thread(target=buffer_sentences)
     buffer_thread.start()
 
@@ -218,15 +232,10 @@ def play_book(input_path, voice=None, show_context=False):
             # Display current sentence
             print(f"\n{sentence}\n")
             
-            # Generate and play audio
-            audio_gen.start_generation(sentence)
-            while True:
-                audio = audio_gen.get_next_audio()
-                if audio is not None:
-                    play_audio(audio)
-                elif not audio_gen.worker_thread.is_alive():
-                    break
-                time.sleep(0.01)
+            # Play pre-generated audio
+            audio = audio_buffer.get()
+            if audio is not None:
+                play_audio(audio)
 
     except KeyboardInterrupt:
         print("\nStopping playback...")
