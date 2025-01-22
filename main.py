@@ -196,66 +196,31 @@ def play_book(input_path, voice=None, show_context=False):
     selected_voice = voice if voice else voices[0]
     audio_gen = AudioGenerator(selected_voice)
 
-    # Buffer for upcoming sentences and their audio
-    sentence_buffer = queue.Queue(maxsize=10)  # Keep 10 sentences ahead
-    audio_buffer = queue.Queue(maxsize=10)  # Keep 10 audio chunks ahead
-    stop_event = threading.Event()
-
-    def buffer_sentences():
-        """Fill the sentence buffer"""
-        for sentence in stream_sentences(input_path):
-            if stop_event.is_set():
-                break
-            sentence_buffer.put(sentence)
-        sentence_buffer.put(None)  # Signal end of stream
-
-    def audio_worker():
-        """Worker to generate and buffer audio"""
-        while not stop_event.is_set():
-            try:
-                sentence = sentence_buffer.get(timeout=0.1)
-                if sentence is None:  # End of stream
-                    break
-                    
-                # Generate audio for this sentence
-                audio_gen.start_generation(sentence)
-                
-                # Get and buffer the generated audio
-                while not stop_event.is_set():
-                    audio = audio_gen.get_next_audio()
-                    if audio is not None:
-                        audio_buffer.put(audio)
-                        break
-                    time.sleep(0.01)
-                    
-            except queue.Empty:
-                continue
-                
-        audio_buffer.put(None)  # Signal end of audio
-
-    # Start buffering sentences and generating audio in background
-    buffer_thread = threading.Thread(target=buffer_sentences)
-    audio_worker_thread = threading.Thread(target=audio_worker)
-    buffer_thread.start()
-    audio_worker_thread.start()
-
     try:
         print("Starting playback... (press Ctrl+C to stop)")
-        while True:
-            sentence = sentence_buffer.get()
-            if sentence is None:  # End of stream
-                break
-
+        
+        # Process sentences one at a time
+        for sentence in stream_sentences(input_path):
             # Display current sentence
             print(f"\n{sentence}\n")
-
-            # Play pre-generated audio
-            audio = audio_buffer.get()
-            if audio is not None:
+            
+            # Generate and play audio for this sentence
+            audio_gen.start_generation(sentence)
+            
+            # Get and play the generated audio
+            while True:
+                audio = audio_gen.get_next_audio()
+                if audio is None:
+                    break
+                
+                # Play the audio and wait for it to finish
                 play_audio(audio)
-                # Wait for any remaining audio to finish
                 while sd.get_stream().active:
                     time.sleep(0.01)
+                    
+            # Clear any remaining audio in the queue
+            while not audio_gen.audio_queue.empty():
+                audio_gen.audio_queue.get()
 
     except KeyboardInterrupt:
         print("\nStopping playback...")
