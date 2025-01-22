@@ -76,24 +76,52 @@ class AudioGenerator:
         
     def _generate_audio_batch(self, text):
         """Generate audio for a text batch in a thread"""
-        phonemes = phonemize(text, self.voice_name[0])
-        tokens = tokenize(phonemes)
-        batch_size = 510
-        token_batches = [
-            tokens[i : i + batch_size] for i in range(0, len(tokens), batch_size)
-        ]
+        # Split text into sentences first
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        # Process sentences in chunks that won't exceed token limit
+        current_chunk = []
+        current_length = 0
+        max_length = 500  # Leave some room for padding
+        
+        for sentence in sentences:
+            phonemes = phonemize(sentence, self.voice_name[0])
+            tokens = tokenize(phonemes)
+            
+            # If adding this sentence would exceed the limit, process current chunk
+            if current_length + len(tokens) > max_length and current_chunk:
+                # Join phonemes and tokenize the chunk
+                chunk_phonemes = ' '.join(current_chunk)
+                chunk_tokens = tokenize(chunk_phonemes)
+                self._process_token_batch(chunk_tokens)
+                
+                # Start new chunk
+                current_chunk = []
+                current_length = 0
+                
+            # Add sentence to current chunk
+            current_chunk.append(phonemes)
+            current_length += len(tokens)
+            
+        # Process any remaining sentences
+        if current_chunk:
+            chunk_phonemes = ' '.join(current_chunk)
+            chunk_tokens = tokenize(chunk_phonemes)
+            self._process_token_batch(chunk_tokens)
         
         for token_batch in token_batches:
             if self.stop_event.is_set():
                 break
-            ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
-                len(token_batch)
-            ].numpy()
-            tokens = [[0, *token_batch, 0]]
-            audio = self.sess.run(
-                None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
-            )[0]
-            self.audio_queue.put(audio)
+    def _process_token_batch(self, tokens):
+        """Process a batch of tokens and add to audio queue"""
+        ref_s = torch.load(f"kokoro/voices/{self.voice_name}.pt", weights_only=True)[
+            len(tokens)
+        ].numpy()
+        tokens = [[0, *tokens, 0]]
+        audio = self.sess.run(
+            None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
+        )[0]
+        self.audio_queue.put(audio)
             
     def start_generation(self, text):
         """Start audio generation in a background thread"""
