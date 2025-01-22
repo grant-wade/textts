@@ -50,6 +50,12 @@ def play_page(page_path, voice=None):
     selected_voice = voice if voice else voices[0]
 
     try:
+        # Clear terminal and display page text
+        os.system('clear')
+        with open(page_path, "r", encoding="utf-8") as f:
+            page_text = f.read()
+            print(page_text)
+
         piper_cmd = [
             "piper",
             "--model",
@@ -66,9 +72,8 @@ def play_page(page_path, voice=None):
         ) as aplay_process:
             # Send page text to Piper
             try:
-                with open(page_path, "r", encoding="utf-8") as f:
-                    piper_process.stdin.write(f.read().encode())
-                    piper_process.stdin.close()
+                piper_process.stdin.write(page_text.encode())
+                piper_process.stdin.close()
 
                 # Wait for playback to finish
                 aplay_process.wait()
