@@ -211,6 +211,12 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
                     and audio_gen.audio_queue.qsize() < 2
                     and not next_audio_gen.audio_queue.empty()
                 ):
+                    # Wait for current audio to finish playing
+                    while not audio_gen.audio_queue.empty():
+                        audio = audio_gen.get_next_audio()
+                        if audio is not None:
+                            play_audio(audio)
+                    
                     # Switch to next page's audio
                     audio_gen.stop()
                     audio_gen = next_audio_gen
