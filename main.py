@@ -19,27 +19,7 @@ PIPER_PATH = Path.home() / "LLM" / "piper_amd64" / "piper"
 MODELS_DIR = Path.home() / "Downloads"
 
 
-def get_available_voices():
-    """Get list of available Piper voices"""
-    voices = []
-    if MODELS_DIR.exists():
-        for model in MODELS_DIR.glob("*.onnx"):
-            voices.append(model.stem)
-    return voices
 
-
-def check_piper_installed():
-    """Check if Piper is installed and available"""
-    try:
-        subprocess.run(
-            ["piper", "--version"],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
 
 
 def get_page_context(page_path, num_sentences=2):
@@ -71,20 +51,7 @@ def play_audio(audio):
 
 
 def play_page(page_path, voice=None, show_context=False):
-    """Play a page using Piper TTS piped to aplay"""
-    if not check_piper_installed():
-        print("Error: Piper TTS is not installed or not in PATH")
-        print("Please install Piper first: https://github.com/rhasspy/piper")
-        return
-
-    voices = get_available_voices()
-    if not voices:
-        print("Error: No Piper voices found. Please download voices to:")
-        print(MODELS_DIR)
-        return
-
-    # Use first voice by default if none specified
-    selected_voice = voice if voice else voices[0]
+    """Play a page using Kokoro TTS"""
 
     try:
         # Clear terminal and display page text
@@ -125,38 +92,10 @@ def play_page(page_path, voice=None, show_context=False):
             if show_context and next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
-        piper_cmd = [
-            "piper",
-            "--model",
-            str(MODELS_DIR / f"{selected_voice}.onnx"),
-            "--output-raw",
-        ]
-        aplay_cmd = ["aplay", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-c", "1"]
-
-        # Pipe Piper output to aplay with proper resource management
-        with subprocess.Popen(
-            piper_cmd,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        ) as piper_process, subprocess.Popen(
-            aplay_cmd,
-            stdin=piper_process.stdout,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ) as aplay_process:
-            # Send page text to Piper
-            try:
-                piper_process.stdin.write(cleaned_text.encode())
-                piper_process.stdin.close()
-
-                # Wait for playback to finish
-                aplay_process.wait()
-            except Exception as e:
-                # Ensure processes are terminated if an error occurs
-                piper_process.terminate()
-                aplay_process.terminate()
-                raise
+        # Generate and play audio
+        try:
+            audio = generate_audio(cleaned_text, VOICE_NAME)
+            play_audio(audio)
     except Exception as e:
         print(f"Error playing page: {e}")
 
@@ -221,12 +160,7 @@ def parse_arguments():
         help="Show context from adjacent pages",
     )
 
-    # Add available voices to help text
-    voices = get_available_voices()
-    if voices:
-        parser.epilog = "Available voices:\n  " + "\n  ".join(voices)
-    else:
-        parser.epilog = "No voices found. Please download voices to: " + str(MODELS_DIR)
+    parser.epilog = "Using Kokoro TTS with voice: " + VOICE_NAME
 
     return parser.parse_args()
 
