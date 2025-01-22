@@ -195,26 +195,26 @@ def play_book(input_path, voice=None, show_context=False):
 
     try:
         print("Starting playback... (press Ctrl+C to stop)")
-        
+
         # Process sentences one at a time
         for sentence in stream_sentences(input_path):
             # Display current sentence
             print(f"\n{sentence}\n")
-            
+
             # Generate and play audio for this sentence
             audio_gen.start_generation(sentence)
-            
+
             # Get and play the generated audio
             while True:
                 audio = audio_gen.get_next_audio()
                 if audio is None:
                     break
-                
+
                 # Play the audio and wait for it to finish
                 play_audio(audio)
                 while sd.get_stream().active:
                     time.sleep(0.01)
-                    
+
             # Clear any remaining audio in the queue
             while not audio_gen.audio_queue.empty():
                 audio_gen.audio_queue.get()
