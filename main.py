@@ -66,9 +66,15 @@ def play_page(page_path, voice=None):
 
         # Pipe Piper output to aplay with proper resource management
         with subprocess.Popen(
-            piper_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE
+            piper_cmd, 
+            stdin=subprocess.PIPE, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL
         ) as piper_process, subprocess.Popen(
-            aplay_cmd, stdin=piper_process.stdout
+            aplay_cmd, 
+            stdin=piper_process.stdout,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         ) as aplay_process:
             # Send page text to Piper
             try:
