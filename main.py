@@ -46,17 +46,23 @@ def play_page(page_path, voice=None):
         piper_cmd = ["piper", "--model", str(MODELS_DIR / f"{selected_voice}.onnx"), "--output-raw"]
         aplay_cmd = ["aplay", "-r", "22050", "-f", "S16_LE", "-t", "raw", "-c", "1"]
         
-        # Pipe Piper output to aplay
-        piper_process = subprocess.Popen(piper_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        aplay_process = subprocess.Popen(aplay_cmd, stdin=piper_process.stdout)
-        
-        # Send page text to Piper
-        with open(page_path, "r") as f:
-            piper_process.stdin.write(f.read().encode())
-            piper_process.stdin.close()
-        
-        # Wait for playback to finish
-        aplay_process.wait()
+        # Pipe Piper output to aplay with proper resource management
+        with subprocess.Popen(piper_cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE) as piper_process, \
+             subprocess.Popen(aplay_cmd, stdin=piper_process.stdout) as aplay_process:
+            
+            # Send page text to Piper
+            try:
+                with open(page_path, "r", encoding="utf-8") as f:
+                    piper_process.stdin.write(f.read().encode())
+                    piper_process.stdin.close()
+                
+                # Wait for playback to finish
+                aplay_process.wait()
+            except Exception as e:
+                # Ensure processes are terminated if an error occurs
+                piper_process.terminate()
+                aplay_process.terminate()
+                raise
     except Exception as e:
         print(f"Error playing page: {e}")
 
