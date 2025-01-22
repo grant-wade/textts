@@ -44,9 +44,8 @@ def play_audio(audio, sample_rate=22050):
         # Normalize audio to prevent clipping
         audio /= np.max(np.abs(audio))
 
-        # Play audio
-        sd.play(audio, samplerate=sample_rate)
-        sd.wait()  # Wait until audio is finished playing
+        # Play audio non-blocking
+        sd.play(audio, samplerate=sample_rate, blocking=False)
     except Exception as e:
         print(f"Error playing audio: {e}")
 
@@ -194,34 +193,39 @@ def play_book(input_path, voice=None, show_context=False):
     audio_gen = AudioGenerator(selected_voice)
 
     # Buffer for upcoming sentences and their audio
-    sentence_buffer = queue.Queue(maxsize=5)  # Keep 5 sentences ahead
-    audio_buffer = queue.Queue(maxsize=5)  # Keep 5 audio chunks ahead
+    sentence_buffer = queue.Queue(maxsize=10)  # Keep 10 sentences ahead
+    audio_buffer = queue.Queue(maxsize=10)  # Keep 10 audio chunks ahead
     stop_event = threading.Event()
 
     def buffer_sentences():
         """Fill the sentence buffer and pre-generate audio"""
+        # Start generating audio for multiple sentences in parallel
         for sentence in stream_sentences(input_path):
             if stop_event.is_set():
                 break
             sentence_buffer.put(sentence)
-
-            # Start generating audio for this sentence
             audio_gen.start_generation(sentence)
-            while True:
+
+        sentence_buffer.put(None)  # Signal end of stream
+
+    def audio_worker():
+        """Worker to continuously fetch and buffer audio"""
+        while not stop_event.is_set():
+            try:
                 audio = audio_gen.get_next_audio()
                 if audio is not None:
                     audio_buffer.put(audio)
-                    break
                 elif not audio_gen.worker_thread.is_alive():
                     break
+            except queue.Empty:
                 time.sleep(0.01)
-
-        sentence_buffer.put(None)  # Signal end of stream
         audio_buffer.put(None)  # Signal end of audio
 
     # Start buffering sentences and audio in background
     buffer_thread = threading.Thread(target=buffer_sentences)
+    audio_worker_thread = threading.Thread(target=audio_worker)
     buffer_thread.start()
+    audio_worker_thread.start()
 
     try:
         print("Starting playback... (press Ctrl+C to stop)")
