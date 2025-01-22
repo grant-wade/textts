@@ -46,6 +46,10 @@ def play_audio(audio, sample_rate=22050):
 
         # Play audio non-blocking
         sd.play(audio, samplerate=sample_rate, blocking=False)
+        
+        # Calculate duration and wait until audio is mostly done
+        duration = len(audio) / sample_rate
+        time.sleep(max(0, duration - 0.1))  # Wait until 100ms before end
     except Exception as e:
         print(f"Error playing audio: {e}")
 
@@ -241,6 +245,9 @@ def play_book(input_path, voice=None, show_context=False):
             audio = audio_buffer.get()
             if audio is not None:
                 play_audio(audio)
+                # Wait for any remaining audio to finish
+                while sd.get_stream().active:
+                    time.sleep(0.01)
 
     except KeyboardInterrupt:
         print("\nStopping playback...")
