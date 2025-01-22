@@ -8,8 +8,28 @@ from pathlib import Path
 from kokoro.kokoro import phonemize, tokenize
 from onnxruntime import InferenceSession
 import torch
+import sounddevice as sd
+import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+
+def play_audio(audio, sample_rate=22050):
+    """Play audio array using sounddevice"""
+    try:
+        # Ensure audio is in the correct format (mono, float32)
+        if audio.ndim > 1:
+            audio = np.mean(audio, axis=1)  # Convert to mono if stereo
+        if audio.dtype != np.float32:
+            audio = audio.astype(np.float32)
+        
+        # Normalize audio to prevent clipping
+        audio /= np.max(np.abs(audio))
+        
+        # Play audio
+        sd.play(audio, samplerate=sample_rate)
+        sd.wait()  # Wait until audio is finished playing
+    except Exception as e:
+        print(f"Error playing audio: {e}")
 VOICE_NAME = "af"
 VOICEPACK = torch.load(f"kokoro/voices/{VOICE_NAME}.pt", weights_only=True).to(device)
 
