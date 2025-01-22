@@ -4,6 +4,15 @@ import sys
 import subprocess
 import argparse
 from pathlib import Path
+from kokoro.kokoro import generate
+from kokoro.models import build_model
+
+import torch
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL = build_model("kokoro/kokoro-v0_19.pth", device=device)
+VOICE_NAME = "af"
+VOICEPACK = torch.load(f"kokoro/voices/{VOICE_NAME}.pt", weights_only=True).to(device)
 
 # Configuration
 PIPER_PATH = Path.home() / "LLM" / "piper_amd64" / "piper"
@@ -46,6 +55,19 @@ def get_page_context(page_path, num_sentences=2):
             if "prev" in str(page_path)
             else sentences[-num_sentences:]
         )
+
+
+def generate_audio(text, voice_name):
+    # this generates 24khz audio
+    audio, _ = generate(MODEL, text, VOICEPACK, lang=voice_name)
+    return audio
+
+
+def play_audio(audio):
+    # this plays audio
+    handle = subprocess.run(
+        ["aplay", "-r", "24000", "-f", "S16_LE", "-t", "raw", "-c", "1"], input=audio
+    )
 
 
 def play_page(page_path, voice=None, show_context=False):
@@ -97,7 +119,7 @@ def play_page(page_path, voice=None, show_context=False):
                     print(f"\n[Previous page ending...]\n{prev_context}\n")
 
             print(f"\n=== Page {page_num} ===\n")
-            print(f"\n{cleaned_text}\n")
+            print(f"{cleaned_text}")
             print(f"\n=== End of Page {page_num} ===\n")
 
             if show_context and next_context:
