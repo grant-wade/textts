@@ -3,14 +3,13 @@ import re
 import sys
 import subprocess
 import argparse
+import numpy as np
 from pathlib import Path
-from kokoro.kokoro import generate
-from kokoro.models import build_model
-
+from kokoro.kokoro import phonemize, tokenize
+from onnxruntime import InferenceSession
 import torch
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL = build_model("kokoro/kokoro-v0_19.pth", device=device)
 VOICE_NAME = "af"
 VOICEPACK = torch.load(f"kokoro/voices/{VOICE_NAME}.pt", weights_only=True).to(device)
 
@@ -44,16 +43,27 @@ def get_page_context(page_path, num_sentences=2):
 
 
 def generate_audio(text, voice_name):
-    # this generates 24khz audio
-    audio, _ = generate(MODEL, text, VOICEPACK, lang=voice_name)
-    return audio
+    # tokenize the input with phonemize() and tokenize()
+    phonemes = phonemize(text, voice_name[0])
+    tokens = tokenize(phonemes)
+    # split the tokens into batches of 510 max tokens
+    batch_size = 510
+    token_batches = [
+        tokens[i : i + batch_size] for i in range(0, len(tokens), batch_size)
+    ]
+    sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
 
-
-def play_audio(audio):
-    # this plays audio
-    subprocess.run(
-        ["aplay", "-r", "24000", "-f", "S16_LE", "-t", "raw", "-c", "1"], input=audio
-    )
+    audios = []
+    for token_batch in token_batches:
+        ref_s = torch.load(f"kokoro/voices/{voice_name}.pt", weights_only=True)[
+            len(token_batch)
+        ].numpy()
+        tokens = [[0, *token_batch, 0]]
+        audio = sess.run(
+            None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
+        )[0]
+        audios.append(audio)
+    return audios
 
 
 def play_page(page_path, voice=None, show_context=False):
@@ -70,7 +80,7 @@ def play_page(page_path, voice=None, show_context=False):
 
     try:
         # Clear terminal and display page text
-        os.system("clear")
+        # os.system("clear")
 
         # Extract page number from filename (format: page_XXX.txt)
         page_num = int(Path(page_path).stem.split("_")[-1])
@@ -108,11 +118,10 @@ def play_page(page_path, voice=None, show_context=False):
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
         # Generate and play audio using the new functions
-        try:
-            audio = generate_audio(cleaned_text, selected_voice)
+        audios = generate_audio(cleaned_text, selected_voice)
+        print("Audio Clips: ", len(audios))
+        for audio in audios:
             play_audio(audio)
-        except Exception as e:
-            print(f"Error generating or playing audio: {e}")
     except Exception as e:
         print(f"Error playing page: {e}")
 
