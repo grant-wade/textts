@@ -14,8 +14,9 @@ def split_book_to_pages(input_path):
     with open(input_path, "r", encoding="utf-8") as infile:
         lines = infile.readlines()
 
-    current_page = 1
-    current_file = None
+    current_page = 0  # Start at 0 to capture content before first page
+    filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
+    current_file = open(filename, "w", encoding="utf-8")
     page_pattern = re.compile(r"^\d+\s*$")
 
     for line in lines:
