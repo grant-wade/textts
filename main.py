@@ -139,6 +139,47 @@ class AudioGenerator:
             self.audio_queue.get()
 
 
+def display_page(page_path, show_context=False):
+    """Display page text with optional context"""
+    # Extract page number from filename (format: page_XXX.txt)
+    page_num = int(Path(page_path).stem.split("_")[-1])
+    pages_dir = Path(page_path).parent
+
+    with open(page_path, "r", encoding="utf-8") as f:
+        if show_context:
+            # Get previous and next page paths
+            prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
+            next_page = pages_dir / f"page_{page_num+1:03d}.txt"
+
+            # Get context from adjacent pages
+            prev_context = get_page_context(prev_page)
+            next_context = get_page_context(next_page, num_sentences=2)
+        
+        page_text = f.read()
+        # Clean up text - preserve paragraph breaks but normalize other whitespace
+        cleaned_text = re.sub(
+            r"(?<!\n)\n(?!\n)", " ", page_text
+        )  # Convert single newlines to spaces
+        cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)  # Normalize spaces
+        cleaned_text = re.sub(
+            r"\n{3,}", "\n\n", cleaned_text
+        )  # Normalize multiple newlines
+        cleaned_text = cleaned_text.strip()
+
+        # Display page text with optional context
+        if show_context:
+            if prev_context:
+                print(f"\n[Previous page ending...]\n{prev_context}\n")
+
+        print(f"\n=== Page {page_num} ===\n")
+        print(f"{cleaned_text}")
+        print(f"\n=== End of Page {page_num} ===\n")
+
+        if show_context and next_context:
+            print(f"\n[Next page starting...]\n{next_context}\n")
+    
+    return cleaned_text
+
 def play_page(page_path, voice=None, show_context=False, next_page_path=None):
     """Play a page using Piper TTS piped to aplay"""
     voices = get_available_voices()
@@ -153,41 +194,8 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
     next_audio_gen = AudioGenerator(selected_voice) if next_page_path else None
 
     try:
-        # Extract page number from filename (format: page_XXX.txt)
-        page_num = int(Path(page_path).stem.split("_")[-1])
-        pages_dir = Path(page_path).parent
-
-        with open(page_path, "r", encoding="utf-8") as f:
-            if show_context:
-                # Get previous and next page paths
-                prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
-                next_page = pages_dir / f"page_{page_num+1:03d}.txt"
-
-                # Get context from adjacent pages
-                prev_context = get_page_context(prev_page)
-                next_context = get_page_context(next_page, num_sentences=2)
-            page_text = f.read()
-            # Clean up text - preserve paragraph breaks but normalize other whitespace
-            cleaned_text = re.sub(
-                r"(?<!\n)\n(?!\n)", " ", page_text
-            )  # Convert single newlines to spaces
-            cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)  # Normalize spaces
-            cleaned_text = re.sub(
-                r"\n{3,}", "\n\n", cleaned_text
-            )  # Normalize multiple newlines
-            cleaned_text = cleaned_text.strip()
-
-            # Display page text with optional context
-            if show_context:
-                if prev_context:
-                    print(f"\n[Previous page ending...]\n{prev_context}\n")
-
-            print(f"\n=== Page {page_num} ===\n")
-            print(f"{cleaned_text}")
-            print(f"\n=== End of Page {page_num} ===\n")
-
-            if show_context and next_context:
-                print(f"\n[Next page starting...]\n{next_context}\n")
+        # Display the page content
+        cleaned_text = display_page(page_path, show_context)
 
         # Start audio generation in background
         audio_gen.start_generation(cleaned_text)
@@ -353,7 +361,8 @@ def main():
                 )
 
                 print(f"Playing page {current_page}...")
-                play_page(page_path, args.voice, args.context, next_page_path)
+                display_page(page_path, args.context)
+                play_page(page_path, args.voice, False, next_page_path)  # Don't show context twice
                 current_page += 1
         else:
             # Play just the specified page
