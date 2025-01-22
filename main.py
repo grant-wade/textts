@@ -52,6 +52,10 @@ def play_page(page_path, voice=None):
     try:
         # Clear terminal and display page text
         os.system("clear")
+        
+        # Extract page number from filename (format: page_XXX.txt)
+        page_num = int(Path(page_path).stem.split('_')[-1])
+        
         with open(page_path, "r", encoding="utf-8") as f:
             page_text = f.read()
             # Clean up text: remove single newlines and normalize spaces
@@ -61,7 +65,11 @@ def play_page(page_path, voice=None):
             cleaned_text = re.sub(
                 r"[ \t]+", " ", cleaned_text
             )  # Multiple spaces/tabs to single space
+            
+            # Display page number and text
+            print(f"\n=== Page {page_num} ===\n")
             print(cleaned_text)
+            print(f"\n=== End of Page {page_num} ===\n")
 
         piper_cmd = [
             "piper",
