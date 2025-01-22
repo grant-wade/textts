@@ -191,7 +191,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Split book into pages and optionally play them using Piper TTS"
     )
-    parser.add_argument("input_file", help="Path to the input text file")
+    parser.add_argument("input_file", nargs="?", help="Path to the input text file")
     parser.add_argument(
         "page", nargs="?", type=int, help="Page number to play (optional)"
     )
@@ -243,9 +243,12 @@ def main():
             print(f"No voices found. Please download voices to: {MODELS_DIR}")
         sys.exit(0)
 
-    validate_arguments(args)
+    if not args.list_voices and not args.input_file:
+        parser.error("the following arguments are required: input_file")
 
-    # Split the book into pages
+    if not args.list_voices:
+        validate_arguments(args)
+        # Split the book into pages
     split_book_to_pages(args.input_file)
 
     # If a page number was provided, play that page
