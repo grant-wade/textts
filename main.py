@@ -48,7 +48,7 @@ def get_page_context(page_path, num_sentences=2):
         )
 
 
-def play_page(page_path, voice=None):
+def play_page(page_path, voice=None, show_context=False):
     """Play a page using Piper TTS piped to aplay"""
     if not check_piper_installed():
         print("Error: Piper TTS is not installed or not in PATH")
@@ -72,15 +72,15 @@ def play_page(page_path, voice=None):
         page_num = int(Path(page_path).stem.split("_")[-1])
         pages_dir = Path(page_path).parent
 
-        # Get previous and next page paths
-        prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
-        next_page = pages_dir / f"page_{page_num+1:03d}.txt"
-
-        # Get context from adjacent pages
-        prev_context = get_page_context(prev_page)
-        next_context = get_page_context(next_page, num_sentences=2)
-
         with open(page_path, "r", encoding="utf-8") as f:
+            if show_context:
+                # Get previous and next page paths
+                prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
+                next_page = pages_dir / f"page_{page_num+1:03d}.txt"
+
+                # Get context from adjacent pages
+                prev_context = get_page_context(prev_page)
+                next_context = get_page_context(next_page, num_sentences=2)
             page_text = f.read()
             # Clean up text: remove single newlines and normalize spaces
             cleaned_text = re.sub(
@@ -90,15 +90,16 @@ def play_page(page_path, voice=None):
                 r"[ \t]+", " ", cleaned_text
             )  # Multiple spaces/tabs to single space
 
-            # Display context and page text
-            if prev_context:
-                print(f"\n[Previous page ending...]\n{prev_context}")
+            # Display page text with optional context
+            if show_context:
+                if prev_context:
+                    print(f"\n[Previous page ending...]\n{prev_context}")
 
             print(f"=== Page {page_num} ===")
             print(cleaned_text)
             print(f"=== End of Page {page_num} ===")
 
-            if next_context:
+            if show_context and next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
 
         piper_cmd = [
@@ -191,6 +192,11 @@ def parse_arguments():
         action="store_true",
         help="Continue playing subsequent pages after the specified page",
     )
+    parser.add_argument(
+        "--context",
+        action="store_true",
+        help="Show context from adjacent pages",
+    )
 
     # Add available voices to help text
     voices = get_available_voices()
@@ -238,7 +244,7 @@ def main():
                 if not os.path.exists(page_path):
                     break
                 print(f"Playing page {current_page}...")
-                play_page(page_path, args.voice)
+                play_page(page_path, args.voice, args.context)
                 current_page += 1
         else:
             # Play just the specified page
@@ -246,7 +252,7 @@ def main():
             if not os.path.exists(page_path):
                 print(f"Error: Page {args.page} not found")
                 sys.exit(1)
-            play_page(page_path, args.voice)
+            play_page(page_path, args.voice, args.context)
 
 
 if __name__ == "__main__":
