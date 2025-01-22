@@ -14,9 +14,8 @@ def split_book_to_pages(input_path):
     with open(input_path, "r", encoding="utf-8") as infile:
         lines = infile.readlines()
 
-    current_page = 0  # Start at 0 to capture content before first page
-    filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
-    current_file = open(filename, "w", encoding="utf-8")
+    current_page = None
+    current_file = None
     page_pattern = re.compile(r"^\d+\s*$")
 
     for line in lines:
@@ -25,11 +24,16 @@ def split_book_to_pages(input_path):
             if current_file is not None:
                 current_file.close()
             # Increment page number
-            current_page += 1
+            current_page = 0 if current_page is None else current_page + 1
             # Create new filename with leading zeros to maintain order
-            page_number = f"{current_page - 1:03d}"  # Subtracting 1 since we start at 1
-            filename = os.path.join(output_dir, f"page_{page_number}.txt")
+            filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
             current_file = open(filename, "w", encoding="utf-8")
+        else:
+            # If we haven't found the first page marker yet, create page_000
+            if current_page is None:
+                current_page = 0
+                filename = os.path.join(output_dir, f"page_{current_page:03d}.txt")
+                current_file = open(filename, "w", encoding="utf-8")
         else:
             if current_file is not None:
                 current_file.write(line)
