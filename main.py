@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import subprocess
+import argparse
 from pathlib import Path
 
 # Configuration
@@ -105,50 +106,55 @@ def split_book_to_pages(input_path):
         current_file.close()
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python main.py <input_file> [play_page_number] [--voice VOICE_NAME]")
-        print("\nAvailable voices:")
-        voices = get_available_voices()
-        if voices:
-            for voice in voices:
-                print(f"  - {voice}")
-        else:
-            print("  No voices found. Please download voices to:", MODELS_DIR)
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description="Split book into pages and optionally play them using Piper TTS")
+    parser.add_argument("input_file", help="Path to the input text file")
+    parser.add_argument("page", nargs="?", type=int, help="Page number to play (optional)")
+    parser.add_argument("--voice", help="Voice to use for TTS (optional)")
+    
+    # Add available voices to help text
+    voices = get_available_voices()
+    if voices:
+        parser.epilog = "Available voices:\n  " + "\n  ".join(voices)
+    else:
+        parser.epilog = "No voices found. Please download voices to: " + str(MODELS_DIR)
+    
+    return parser.parse_args()
+
+def validate_arguments(args):
+    """Validate the provided arguments"""
+    if not os.path.exists(args.input_file):
+        print(f"Error: Input file '{args.input_file}' not found")
         sys.exit(1)
+        
+    if args.voice and args.voice not in get_available_voices():
+        print(f"Error: Voice '{args.voice}' not found")
+        sys.exit(1)
+        
+    if args.page is not None and args.page < 0:
+        print("Error: Page number must be positive")
+        sys.exit(1)
+
+def main():
+    """Main entry point for the script"""
+    args = parse_arguments()
+    validate_arguments(args)
     
-    input_file = sys.argv[1]
-    split_book_to_pages(input_file)
+    # Split the book into pages
+    split_book_to_pages(args.input_file)
     
-    # Parse optional arguments
-    voice = None
-    page_num = None
-    
-    if len(sys.argv) > 2:
-        try:
-            # Check for --voice argument
-            if "--voice" in sys.argv:
-                voice_index = sys.argv.index("--voice")
-                if len(sys.argv) > voice_index + 1:
-                    voice = sys.argv[voice_index + 1]
-                    if voice not in get_available_voices():
-                        print(f"Error: Voice '{voice}' not found")
-                        sys.exit(1)
+    # If a page number was provided, play that page
+    if args.page is not None:
+        base_name = os.path.splitext(os.path.basename(args.input_file))[0]
+        output_dir = f"{base_name}_pages"
+        page_path = os.path.join(output_dir, f"page_{args.page:03d}.txt")
+        
+        if not os.path.exists(page_path):
+            print(f"Error: Page {args.page} not found")
+            sys.exit(1)
             
-            # Get page number if provided
-            if len(sys.argv) > 2 and sys.argv[2].isdigit():
-                page_num = int(sys.argv[2])
-                
-            if page_num is not None:
-                base_name = os.path.splitext(os.path.basename(input_file))[0]
-                output_dir = f"{base_name}_pages"
-                page_path = os.path.join(output_dir, f"page_{page_num:03d}.txt")
-                
-                if not os.path.exists(page_path):
-                    print(f"Error: Page {page_num} not found")
-                    sys.exit(1)
-                    
-                play_page(page_path, voice)
-                
-        except ValueError:
-            print("Page number must be an integer")
+        play_page(page_path, args.voice)
+
+if __name__ == "__main__":
+    main()
