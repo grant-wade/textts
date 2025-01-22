@@ -33,6 +33,16 @@ def check_piper_installed():
         return False
 
 
+def get_page_context(page_path, num_sentences=2):
+    """Get the first or last few sentences from a page"""
+    if not os.path.exists(page_path):
+        return ""
+    
+    with open(page_path, "r", encoding="utf-8") as f:
+        text = f.read()
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        return " ".join(sentences[:num_sentences] if "prev" in str(page_path) else sentences[-num_sentences:])
+
 def play_page(page_path, voice=None):
     """Play a page using Piper TTS piped to aplay"""
     if not check_piper_installed():
@@ -55,6 +65,15 @@ def play_page(page_path, voice=None):
         
         # Extract page number from filename (format: page_XXX.txt)
         page_num = int(Path(page_path).stem.split('_')[-1])
+        pages_dir = Path(page_path).parent
+        
+        # Get previous and next page paths
+        prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
+        next_page = pages_dir / f"page_{page_num+1:03d}.txt"
+        
+        # Get context from adjacent pages
+        prev_context = get_page_context(prev_page)
+        next_context = get_page_context(next_page, num_sentences=2)
         
         with open(page_path, "r", encoding="utf-8") as f:
             page_text = f.read()
@@ -66,10 +85,16 @@ def play_page(page_path, voice=None):
                 r"[ \t]+", " ", cleaned_text
             )  # Multiple spaces/tabs to single space
             
-            # Display page number and text
+            # Display context and page text
+            if prev_context:
+                print(f"\n[Previous page ending...]\n{prev_context}\n")
+            
             print(f"\n=== Page {page_num} ===\n")
             print(cleaned_text)
             print(f"\n=== End of Page {page_num} ===\n")
+            
+            if next_context:
+                print(f"\n[Next page starting...]\n{next_context}\n")
 
         piper_cmd = [
             "piper",
