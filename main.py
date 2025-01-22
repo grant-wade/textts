@@ -76,23 +76,27 @@ class AudioGenerator:
 
     def _generate_audio_batch(self, text):
         """Generate audio for a text batch in a thread"""
-        # Split text into sentences first
-        sentences = re.split(r"(?<=[.!?])\s+", text)
+        # Split text into paragraphs first
+        paragraphs = text.split('\n\n')
+        
+        for paragraph in paragraphs:
+            # Split paragraph into sentences
+            sentences = re.split(r"(?<=[.!?])\s+", paragraph)
+            
+            for sentence in sentences:
+                # Skip empty or whitespace-only sentences
+                if not sentence or sentence.isspace():
+                    continue
 
-        for sentence in sentences:
-            # Skip empty or whitespace-only sentences
-            if not sentence or sentence.isspace():
-                continue
-
-            try:
-                # Process each sentence individually
-                phonemes = phonemize(sentence, self.voice_name[0])
-                tokens = tokenize(phonemes)
-                self._process_token_batch(tokens)
-            except Exception as e:
-                print(f"Error processing sentence: {e}")
-                print(f"Sentence: {sentence}")
-                continue
+                try:
+                    # Process each sentence individually
+                    phonemes = phonemize(sentence, self.voice_name[0])
+                    tokens = tokenize(phonemes)
+                    self._process_token_batch(tokens)
+                except Exception as e:
+                    print(f"Error processing sentence: {e}")
+                    print(f"Sentence: {sentence}")
+                    continue
 
     def _process_token_batch(self, tokens):
         """Process a batch of tokens and add to audio queue"""
@@ -163,9 +167,10 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
                 prev_context = get_page_context(prev_page)
                 next_context = get_page_context(next_page, num_sentences=2)
             page_text = f.read()
-            # Clean up text
-            cleaned_text = re.sub(r"(?<!\n)\n(?!\n)", " ", page_text)
-            cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)
+            # Clean up text - preserve paragraph breaks but normalize other whitespace
+            cleaned_text = re.sub(r"(?<!\n)\n(?!\n)", " ", page_text)  # Convert single newlines to spaces
+            cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)  # Normalize spaces
+            cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)  # Normalize multiple newlines
             cleaned_text = cleaned_text.strip()
 
             # Display page text with optional context
