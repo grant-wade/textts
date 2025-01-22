@@ -186,8 +186,25 @@ def split_book_to_pages(input_path):
         current_file.close()
 
 
-def parse_arguments():
-    """Parse command line arguments"""
+
+
+def validate_arguments(args):
+    """Validate the provided arguments"""
+    if not os.path.exists(args.input_file):
+        print(f"Error: Input file '{args.input_file}' not found")
+        sys.exit(1)
+
+    if args.voice and args.voice not in get_available_voices():
+        print(f"Error: Voice '{args.voice}' not found")
+        sys.exit(1)
+
+    if args.page is not None and args.page < 0:
+        print("Error: Page number must be positive")
+        sys.exit(1)
+
+
+def main():
+    """Main entry point for the script"""
     parser = argparse.ArgumentParser(
         description="Split book into pages and optionally play them using Piper TTS"
     )
@@ -211,28 +228,8 @@ def parse_arguments():
         action="store_true",
         help="List all available voice models and exit",
     )
-
-    return parser.parse_args()
-
-
-def validate_arguments(args):
-    """Validate the provided arguments"""
-    if not os.path.exists(args.input_file):
-        print(f"Error: Input file '{args.input_file}' not found")
-        sys.exit(1)
-
-    if args.voice and args.voice not in get_available_voices():
-        print(f"Error: Voice '{args.voice}' not found")
-        sys.exit(1)
-
-    if args.page is not None and args.page < 0:
-        print("Error: Page number must be positive")
-        sys.exit(1)
-
-
-def main():
-    """Main entry point for the script"""
-    args = parse_arguments()
+    
+    args = parser.parse_args()
     if args.list_voices:
         voices = get_available_voices()
         if voices:
