@@ -77,12 +77,12 @@ class AudioGenerator:
     def _generate_audio_batch(self, text):
         """Generate audio for a text batch in a thread"""
         # Split text into paragraphs first
-        paragraphs = text.split('\n\n')
-        
+        paragraphs = text.split("\n\n")
+
         for paragraph in paragraphs:
             # Split paragraph into sentences
             sentences = re.split(r"(?<=[.!?])\s+", paragraph)
-            
+
             for sentence in sentences:
                 # Skip empty or whitespace-only sentences
                 if not sentence or sentence.isspace():
@@ -168,9 +168,13 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
                 next_context = get_page_context(next_page, num_sentences=2)
             page_text = f.read()
             # Clean up text - preserve paragraph breaks but normalize other whitespace
-            cleaned_text = re.sub(r"(?<!\n)\n(?!\n)", " ", page_text)  # Convert single newlines to spaces
+            cleaned_text = re.sub(
+                r"(?<!\n)\n(?!\n)", " ", page_text
+            )  # Convert single newlines to spaces
             cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)  # Normalize spaces
-            cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)  # Normalize multiple newlines
+            cleaned_text = re.sub(
+                r"\n{3,}", "\n\n", cleaned_text
+            )  # Normalize multiple newlines
             cleaned_text = cleaned_text.strip()
 
             # Display page text with optional context
@@ -213,7 +217,7 @@ def play_page(page_path, voice=None, show_context=False, next_page_path=None):
                     next_audio_gen = None
             elif not audio_gen.worker_thread.is_alive():
                 break
-            time.sleep(0.1)
+            time.sleep(0.01)
 
     except KeyboardInterrupt:
         print("\nStopping playback...")
