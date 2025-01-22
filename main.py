@@ -82,22 +82,23 @@ def play_page(page_path, voice=None, show_context=False):
                 prev_context = get_page_context(prev_page)
                 next_context = get_page_context(next_page, num_sentences=2)
             page_text = f.read()
-            # Clean up text: remove single newlines and normalize spaces
+            # Clean up text: remove single newlines, normalize spaces, and strip whitespace
             cleaned_text = re.sub(
                 r"(?<!\n)\n(?!\n)", " ", page_text
             )  # Single newlines to spaces
             cleaned_text = re.sub(
                 r"[ \t]+", " ", cleaned_text
             )  # Multiple spaces/tabs to single space
+            cleaned_text = cleaned_text.strip()  # Remove leading/trailing whitespace
 
-            # Display page text with optional context
+            # Display page text with optional context and padding
             if show_context:
                 if prev_context:
-                    print(f"\n[Previous page ending...]\n{prev_context}")
+                    print(f"\n[Previous page ending...]\n{prev_context}\n")
 
-            print(f"=== Page {page_num} ===")
-            print(cleaned_text)
-            print(f"=== End of Page {page_num} ===")
+            print(f"\n=== Page {page_num} ===\n")
+            print(f"\n{cleaned_text}\n")
+            print(f"\n=== End of Page {page_num} ===\n")
 
             if show_context and next_context:
                 print(f"\n[Next page starting...]\n{next_context}\n")
