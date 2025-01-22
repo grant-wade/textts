@@ -363,8 +363,7 @@ def main():
                 )
 
                 print(f"Playing page {current_page}...")
-                display_page(page_path, args.context)
-                play_page(page_path, args.voice, False, next_page_path)  # Don't show context twice
+                play_page(page_path, args.voice, args.context, next_page_path)
                 current_page += 1
         else:
             # Play just the specified page
