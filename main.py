@@ -121,12 +121,12 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
             sentence = next(sentence_stream, None)
             if sentence:
                 sentences.append(sentence)
-                audio_gen.add_sentence(sentence)
+                audio_gen.add_sentence(sentence
         
         # Display initial status
         if sentences:
             print(f"\nPre-filling audio queue with {len(sentences)} sentences...")
-
+    
         # Start with the first sentence
         current_sentence = sentences[0] if sentences else None
 
