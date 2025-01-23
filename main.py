@@ -108,6 +108,13 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     sentence_stream = stream_sentences(input_path)
 
     try:
+        # Set up audio saving if requested
+        output_file = None
+        if save_audio:
+            base_name = os.path.splitext(os.path.basename(input_path))[0]
+            output_file = Path(f"{base_name}_audio") / f"{base_name}.wav"
+            output_file.parent.mkdir(exist_ok=True, parents=True)
+
         # Skip to the saved progress position
         sentence_index = 0
         while sentence_index < progress.get_progress():
@@ -178,7 +185,7 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
         exit(1)
     finally:
         # Save any remaining audio
-        if audio_buffer:
+        if audio_buffer and output_file:
             save_audio_to_wav(output_file, audio_buffer, sample_rate)
             
         audio_gen.stop()
