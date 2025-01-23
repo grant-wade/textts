@@ -42,39 +42,12 @@ def play_audio(audio, event, sample_rate=22050, return_audio=False):
         if audio_max > 0:
             audio /= audio_max
 
-        # Play audio non-blocking with callback
-        event.clear()
-        position = 0
-        total_samples = len(audio)
-        
-        def audio_callback(outdata, frames, time, status):
-            nonlocal position
-            remaining = total_samples - position
-            
-            if remaining <= 0:
-                outdata[:] = np.zeros_like(outdata)
-                raise sd.CallbackStop()
-                
-            # Get chunk and advance position
-            chunk_size = min(frames, remaining)
-            chunk = audio[position:position+chunk_size]
-            
-            # Ensure proper shape and padding
-            if len(chunk) < frames:
-                chunk = np.pad(chunk, (0, frames - len(chunk)), mode='constant')
-            
-            # Reshape and copy without explicit slicing
-            outdata[:] = chunk.reshape(-1, 1)
-            position += frames  # Always advance by full frame size
-            
-        stream = sd.RawOutputStream(
-            samplerate=sample_rate,
-            channels=1,
-            dtype='float32',
-            callback=audio_callback,
-            finished_callback=event.set
-        )
-        stream.start()
+        # Play audio using blocking playback with safety checks
+        if audio.size > 0:
+            sd.play(audio, samplerate=sample_rate, blocking=False)
+            event.clear()  # Clear event at start of playback
+            sd.wait()      # Wait for playback to finish
+            event.set()    # Signal completion
     except Exception as e:
         print(f"Error playing audio: {e}")
     
@@ -240,8 +213,8 @@ def play_book(input_path, voice=None, show_context=False, speed=1.0, save_audio=
                         audio_buffer = []
                         file_counter += 1
                 
-                # Wait for current audio to finish before continuing
-                audio_gen.audio_done_event.wait()
+                # Wait for current audio to finish with timeout
+                audio_gen.audio_done_event.wait(10)  # 10 second timeout
                 
                 # Update progress after audio completes
                 progress.update_progress(sentence_index)
