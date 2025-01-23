@@ -14,8 +14,7 @@ if (-not (Get-Command git-lfs -ErrorAction SilentlyContinue)) {
 git lfs install
 
 # Download kokomo voice model with LFS
-git clone https://github.com/karnapurohit/kokoro.git
-git lfs pull
+git clone https://huggingface.co/hexgrad/Kokoro-82M
 
 Write-Host ""
 Write-Host "Setup complete! Activate the virtual environment with:"
