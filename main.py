@@ -219,6 +219,8 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
     audio_buffer = []
 
     try:
+        print("Starting audio generation process")  # Debug print
+
         # Skip to the saved progress position
         sentence_index = 0
         while sentence_index < progress.get_progress():
@@ -233,29 +235,38 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
             if sentence:
                 sentences.append(sentence)
                 audio_gen.add_sentence(sentence)
+                print(f"Prefilling with sentence: {sentence}")  # Debug print
 
         # Start with the first sentence
         current_sentence = sentences[0] if sentences else None
+        if current_sentence:
+            print(f"Starting with sentence: {current_sentence}")  # Debug print
 
         # Main audio generation loop
         while len(sentences) > 0 or not audio_gen.audio_queue.empty():
+            print("Main audio generation loop iteration")  # Debug print
             # Generate any available audio
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
                 audio_buffer.append(audio)
+                print(f"Generated audio chunk of size: {len(audio)}")  # Debug print
 
             # Get next sentence from stream if available
             current_sentence = next(sentence_stream, None)
             if current_sentence:
                 sentences.append(current_sentence)
                 audio_gen.add_sentence(current_sentence)
+                print(f"Added sentence to queue: {current_sentence}")  # Debug print
 
             # Don't spin too fast if queue is empty
             if len(sentences) == 0 and not audio_gen.stop_event.is_set():
+                print("Waiting for more sentences or audio")  # Debug print
                 time.sleep(0.1)
 
         # Final wait for last audio to finish
+        print("Waiting for last audio to finish")  # Debug print
         audio_gen.audio_done_event.wait()
+        print("Last audio finished")  # Debug print
 
     except Exception as e:
         print(f"Error generating audio: {e}")
