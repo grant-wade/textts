@@ -251,26 +251,29 @@ def generate_audio_from_file(
             if sentence:
                 sentences.append(sentence)
                 audio_gen.add_sentence(sentence)
-                print(f"Prefilling with sentence: {sentence}")  # Debug print
 
         # Start with the first sentence
         current_sentence = sentences[0] if sentences else None
 
         # Main audio generation loop
-        while len(sentences) > 0:
-            sentences.pop(0)
-            sentences_processed += 1
+        while audio_gen.sentence_queue.qsize() > 0 or audio_gen.audio_queue.qsize() > 0:
+            if len(sentences) > 0:
+                sentences.pop(0)
 
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
                 audio_buffer.append(audio)
                 total_samples += len(audio)
+                sentences_processed += 1
 
                 # Calculate progress metrics
                 elapsed = time.time() - start_time
                 samples_sec = total_samples / elapsed if elapsed > 0 else 0
-                bytes_total = total_samples * 4  # 4 bytes per float32 sample
-                progress_percent = (sentences_processed / (sentences_processed + audio_gen.sentence_queue.qsize())) * 100
+                bytes_total = total_samples * 2
+                progress_percent = (
+                    sentences_processed
+                    / (sentences_processed + audio_gen.sentence_queue.qsize())
+                ) * 100
 
                 # Format progress output
                 progress = (
@@ -286,18 +289,11 @@ def generate_audio_from_file(
             if current_sentence:
                 sentences.append(current_sentence)
                 audio_gen.add_sentence(current_sentence)
-                print(f"Added sentence to queue: {current_sentence}")  # Debug print
+                # print(f"Added sentence to queue: {current_sentence}")  # Debug print
 
             # Don't spin too fast if queue is empty
             if len(sentences) == 0 and not audio_gen.stop_event.is_set():
-                print("Waiting for more sentences or audio")  # Debug print
                 time.sleep(0.1)
-
-        while audio_gen.sentence_queue.qsize() > 0 or audio_gen.audio_queue.qsize() > 0:
-            audio = audio_gen.get_audio()
-            if audio is not None and len(audio) > 0:
-                audio_buffer.append(audio)
-                print(f"Generated audio chunk of size: {len(audio)}")
 
         # Final wait for last audio to finish
         print("Waiting for last audio to finish")  # Debug print
