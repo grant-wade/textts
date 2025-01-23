@@ -271,6 +271,15 @@ def save_audio_to_wav(output_file, audio_buffer, sample_rate):
         concatenated = np.concatenate(audio_buffer).astype(np.float32)
         wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
 
+def save_audio_to_wav(output_file, audio_buffer, sample_rate):
+    """Save audio buffer to a WAV file"""
+    with wave.open(output_file, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        concatenated = np.concatenate(audio_buffer).astype(np.float32)
+        wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
+
 def main():
     """Main entry point for the script"""
     parser = argparse.ArgumentParser(
