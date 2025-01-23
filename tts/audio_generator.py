@@ -24,12 +24,16 @@ class AudioGenerator:
         while not self.stop_event.is_set():
             try:
                 sentence = self.sentence_queue.get(timeout=0.1)
+                if self.stop_event.is_set():  # Immediate check after getting item
+                    break
 
                 # Split and process long sentences
                 sentence_parts = self._split_sentence(sentence)
                 audio_chunks = []
 
                 for part in sentence_parts:
+                    if self.stop_event.is_set():  # Check before each part
+                        break
                     phonemes = phonemize(part, self.voice_name[0])
                     tokens = tokenize(phonemes)
 
@@ -111,7 +115,14 @@ class AudioGenerator:
         """Stop the worker thread"""
         self.stop_event.set()
         
+        # Clear queues to break potential blocking
+        while not self.sentence_queue.empty():
+            try:
+                self.sentence_queue.get_nowait()
+            except queue.Empty:
+                break
+                
         if self.worker_thread.is_alive():
-            self.worker_thread.join(timeout=1.0)  # Increase timeout slightly
+            self.worker_thread.join(timeout=2.0)  # Increased timeout
             if self.worker_thread.is_alive():
                 print("Warning: Audio worker thread did not terminate cleanly")
