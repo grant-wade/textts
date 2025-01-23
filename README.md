@@ -18,6 +18,7 @@ A text-to-speech audiobook generator that uses Kokoro-82M or Piper TTS for high-
 - Python 3.8+
 - git
 - git-lfs
+- espeak (for phonemizer)
 
 ### Setup Steps
 
@@ -30,20 +31,13 @@ A text-to-speech audiobook generator that uses Kokoro-82M or Piper TTS for high-
 #### Linux/macOS
 
 ```bash
-chmod +x setup.sh
-./setup.sh
+bash ./setup.sh
 ```
 
 After setup, activate the virtual environment:
 
 - Windows: `.\venv\Scripts\Activate.ps1`
 - Linux/macOS: `source venv/bin/activate`
-
-Download voice models using git-lfs:
-
-```bash
-git clone https://huggingface.co/hexgrad/Kokoro-82M
-```
 
 ## Usage
 
