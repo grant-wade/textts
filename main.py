@@ -1,7 +1,9 @@
+import sys
 from tts.audio_player import play_book
 from tts.audio_processor import generate_audio_from_file
 from utils.arg_parser import parse_arguments, validate_arguments
 from config.settings import MODELS_DIR
+from tts.voice_utils import get_available_voices
 
 def main():
     """Main entry point for the script"""
@@ -18,7 +20,7 @@ def main():
         sys.exit(0)
 
     if not args.list_voices and not args.input_file:
-        parser.error("the following arguments are required: input_file")
+        sys.exit("Error: the following arguments are required: input_file")
 
     if not args.list_voices:
         validate_arguments(args)

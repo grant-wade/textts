@@ -1,10 +1,14 @@
+import os
 import re
 import time
 import numpy as np
 import sounddevice as sd
+from pathlib import Path
 from utils.progress_tracker import FileReadingProgress
 from tts.audio_generator import AudioGenerator
 from config.settings import MODELS_DIR
+from tts.voice_utils import get_available_voices
+from tts.audio_processor import save_audio_to_wav
 
 def play_audio(audio, event, sample_rate=22050, return_audio=False):
     """Play audio array using sounddevice"""

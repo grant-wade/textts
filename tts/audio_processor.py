@@ -1,9 +1,12 @@
+import os
 import time
 import numpy as np
 import wave
 from tts.audio_generator import AudioGenerator
 from utils.progress_tracker import FileReadingProgress
 from config.settings import MODELS_DIR
+from tts.voice_utils import get_available_voices
+from tts.audio_player import stream_sentences
 
 def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="output.wav"):
     """Generate audio from a text file and save it to a WAV file"""
