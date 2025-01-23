@@ -232,16 +232,16 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
 
         # Main audio generation loop
         while len(sentences) > 0 or not audio_gen.audio_queue.empty():
-            # Check for any available audio
+            # Generate any available audio
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
                 audio_buffer.append(audio)
 
-                # Get next sentence from stream if available
-                current_sentence = next(sentence_stream, None)
-                if current_sentence:
-                    sentences.append(current_sentence)
-                    audio_gen.add_sentence(current_sentence)
+            # Get next sentence from stream if available
+            current_sentence = next(sentence_stream, None)
+            if current_sentence:
+                sentences.append(current_sentence)
+                audio_gen.add_sentence(current_sentence)
 
             # Don't spin too fast if queue is empty
             if len(sentences) == 0 and not audio_gen.stop_event.is_set():
