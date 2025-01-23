@@ -264,9 +264,6 @@ def generate_audio_from_file(
                 time.sleep(0.1)
 
         # Ensure the sentence queue is empty
-        while not audio_gen.sentence_queue.empty():
-            print("Waiting for sentence queue to empty")  # Debug print
-            time.sleep(0.1)
 
         # Final wait for last audio to finish
         print("Waiting for last audio to finish")  # Debug print
