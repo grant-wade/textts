@@ -18,7 +18,6 @@ KOKORO_PATH = Path(".") / "kokoro"
 MODELS_DIR = KOKORO_PATH / "voices"
 
 
-
 def get_available_voices():
     """Get list of available Piper voices"""
     voices = []
@@ -46,16 +45,13 @@ def play_audio(audio, event, sample_rate=22050, return_audio=False):
         if audio.size > 0:
             sd.play(audio, samplerate=sample_rate, blocking=False)
             event.clear()  # Clear event at start of playback
-            sd.wait()      # Wait for playback to finish
-            event.set()    # Signal completion
+            sd.wait()  # Wait for playback to finish
+            event.set()  # Signal completion
     except Exception as e:
         print(f"Error playing audio: {e}")
-    
+
     if return_audio:
         return audio
-
-
-
 
 
 def stream_sentences(input_path):
@@ -90,7 +86,7 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     file_counter = 1
     sample_rate = int(22050 * speed)
     samples_per_minute = sample_rate * 60
-    
+
     if save_audio:
         base_name = os.path.splitext(os.path.basename(input_path))[0]
         output_dir = Path(f"{base_name}_audio")
@@ -120,7 +116,7 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
         while sentence_index < progress.get_progress():
             next(sentence_stream, None)
             sentence_index += 1
-        
+
         # Pre-fill the pipeline with more sentences
         prefill_count = 10  # Increased pre-fill buffer
         sentences = []
@@ -129,11 +125,11 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
             if sentence:
                 sentences.append(sentence)
                 audio_gen.add_sentence(sentence)
-        
+
         # Display initial status
         if sentences:
             print(f"\nPre-filling audio queue with {len(sentences)} sentences...")
-    
+
         # Start with the first sentence
         current_sentence = sentences[0] if sentences else None
 
@@ -147,15 +143,15 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
                     audio,
                     audio_gen.audio_done_event,
                     sample_rate=sample_rate,
-                    return_audio=True
+                    return_audio=True,
                 )
-                
+
                 if played_audio is not None:
                     audio_buffer.append(played_audio)
-                    
+
                 # Wait for current audio to finish with timeout
                 audio_gen.audio_done_event.wait(10)  # 10 second timeout
-                
+
                 # Update progress after audio completes
                 progress.update_progress(sentence_index)
                 sentence_index += 1
@@ -165,7 +161,7 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
             if current_sentence:
                 sentences.append(current_sentence)
                 audio_gen.add_sentence(current_sentence)
-            
+
             # Don't spin too fast if queue is empty
             if len(sentences) == 0 and not audio_gen.stop_event.is_set():
                 time.sleep(0.1)
@@ -181,13 +177,14 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     except Exception as e:
         print(f"Error playing page: {e}")
         import traceback
+
         traceback.print_exc()
         exit(1)
     finally:
         # Save any remaining audio
         if audio_buffer and output_file:
             save_audio_to_wav(output_file, audio_buffer, sample_rate)
-            
+
         audio_gen.stop()
 
 
@@ -202,7 +199,9 @@ def validate_arguments(args):
         sys.exit(1)
 
 
-def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="output.wav"):
+def generate_audio_from_file(
+    input_path, voice=None, speed=1.0, output_file="output.wav"
+):
     """Generate audio from a text file and save it to a WAV file"""
     sample_rate = int(22050 * speed)
 
@@ -243,8 +242,9 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
             print(f"Starting with sentence: {current_sentence}")  # Debug print
 
         # Main audio generation loop
-        while len(sentences) > 0 or not audio_gen.audio_queue.empty():
-            print("Main audio generation loop iteration")  # Debug print
+        while len(sentences) > 0:
+            # remove the current sentence from the queue
+            sentences.pop(0)
             # Generate any available audio
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
@@ -281,13 +281,14 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
     except Exception as e:
         print(f"Error generating audio: {e}")
         import traceback
+
         traceback.print_exc()
         exit(1)
     finally:
         print("Reached finally block")  # Debug print
         # Send sentinel value to stop the worker thread
         audio_gen.sentence_queue.put(None)
-            
+
         # Save any remaining audio
         if audio_buffer:
             print("Saving audio to WAV")  # Debug print
@@ -299,14 +300,6 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
         audio_gen.stop()
         print("Audio generator stopped")  # Debug print
 
-def save_audio_to_wav(output_file, audio_buffer, sample_rate):
-    """Save audio buffer to a WAV file"""
-    with wave.open(output_file, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        concatenated = np.concatenate(audio_buffer).astype(np.float32)
-        wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
 
 def save_audio_to_wav(output_file, audio_buffer, sample_rate):
     """Save audio buffer to a WAV file"""
@@ -316,6 +309,7 @@ def save_audio_to_wav(output_file, audio_buffer, sample_rate):
         wf.setframerate(sample_rate)
         concatenated = np.concatenate(audio_buffer).astype(np.float32)
         wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
+
 
 def main():
     """Main entry point for the script"""
@@ -361,21 +355,13 @@ def main():
 
     if not args.list_voices:
         validate_arguments(args)
-        
+
         if args.generate_audio:
             generate_audio_from_file(
-                args.input_file,
-                args.voice,
-                args.speed,
-                args.generate_audio
+                args.input_file, args.voice, args.speed, args.generate_audio
             )
         else:
-            play_book(
-                args.input_file, 
-                args.voice, 
-                args.speed,
-                args.save_audio
-            )
+            play_book(args.input_file, args.voice, args.speed, args.save_audio)
 
 
 if __name__ == "__main__":
