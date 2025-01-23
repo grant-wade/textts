@@ -190,9 +190,8 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
         exit(1)
     finally:
         # Save any remaining audio
-        if save_audio and audio_buffer:
-            output_file = output_dir / f"{file_counter:04d}.wav"
-            with wave.open(str(output_file), "wb") as wf:
+        if audio_buffer:
+            with wave.open(output_file, "wb") as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(2)
                 wf.setframerate(sample_rate)
@@ -212,6 +211,78 @@ def validate_arguments(args):
         print(f"Error: Voice '{args.voice}' not found")
         sys.exit(1)
 
+
+def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="output.wav"):
+    """Generate audio from a text file and save it to a WAV file"""
+    sample_rate = int(22050 * speed)
+
+    voices = get_available_voices()
+    if not voices:
+        print("Error: No voices found. Please download voices to:")
+        print(MODELS_DIR)
+        return
+
+    selected_voice = voice if voice else voices[0]
+    audio_gen = AudioGenerator(selected_voice)
+    progress = FileReadingProgress(input_path)
+    sentence_stream = stream_sentences(input_path)
+    audio_buffer = []
+
+    try:
+        # Skip to the saved progress position
+        sentence_index = 0
+        while sentence_index < progress.get_progress():
+            next(sentence_stream, None)
+            sentence_index += 1
+
+        # Pre-fill the pipeline with more sentences
+        prefill_count = 10  # Increased pre-fill buffer
+        sentences = []
+        for _ in range(prefill_count):
+            sentence = next(sentence_stream, None)
+            if sentence:
+                sentences.append(sentence)
+                audio_gen.add_sentence(sentence)
+
+        # Start with the first sentence
+        current_sentence = sentences[0] if sentences else None
+
+        # Main audio generation loop
+        while len(sentences) > 0 or not audio_gen.audio_queue.empty():
+            # Check for any available audio
+            audio = audio_gen.get_audio()
+            if audio is not None and len(audio) > 0:
+                audio_buffer.append(audio)
+
+                # Get next sentence from stream if available
+                current_sentence = next(sentence_stream, None)
+                if current_sentence:
+                    sentences.append(current_sentence)
+                    audio_gen.add_sentence(current_sentence)
+
+            # Don't spin too fast if queue is empty
+            if len(sentences) == 0 and not audio_gen.stop_event.is_set():
+                time.sleep(0.1)
+
+        # Final wait for last audio to finish
+        audio_gen.audio_done_event.wait()
+
+    except Exception as e:
+        print(f"Error generating audio: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
+    finally:
+        # Save any remaining audio
+        if audio_buffer:
+            with wave.open(output_file, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                concatenated = np.concatenate(audio_buffer).astype(np.float32)
+                wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
+
+        audio_gen.stop()
 
 def main():
     """Main entry point for the script"""
@@ -236,6 +307,10 @@ def main():
         action="store_true",
         help="Save generated audio to WAV files in a directory named after the input file",
     )
+    parser.add_argument(
+        "--generate-audio",
+        help="Generate audio from the input file and save it to the specified output file",
+    )
 
     args = parser.parse_args()
     if args.list_voices:
@@ -253,12 +328,21 @@ def main():
 
     if not args.list_voices:
         validate_arguments(args)
-        play_book(
-            args.input_file, 
-            args.voice, 
-            args.speed,
-            args.save_audio
-        )
+        
+        if args.generate_audio:
+            generate_audio_from_file(
+                args.input_file,
+                args.voice,
+                args.speed,
+                args.generate_audio
+            )
+        else:
+            play_book(
+                args.input_file, 
+                args.voice, 
+                args.speed,
+                args.save_audio
+            )
 
 
 if __name__ == "__main__":
