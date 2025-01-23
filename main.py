@@ -297,6 +297,7 @@ def generate_audio_from_file(
             print("No audio buffer to save")  # Debug print
 
         print("Stopping audio generator")  # Debug print
+        # Request stop and wait with timeout
         audio_gen.stop()
         print("Audio generator stopped")  # Debug print
 

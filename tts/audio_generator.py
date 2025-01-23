@@ -100,5 +100,18 @@ class AudioGenerator:
     def stop(self):
         """Stop the worker thread"""
         self.stop_event.set()
-        self.sentence_queue.put(None)  # Sentinel value
-        self.worker_thread.join()
+        # Drain any remaining sentences to ensure worker can exit
+        while not self.sentence_queue.empty():
+            try:
+                self.sentence_queue.get_nowait()
+            except queue.Empty:
+                break
+        # Ensure worker thread wakes up from queue.get()
+        try:
+            self.sentence_queue.put_nowait(None)
+        except queue.Full:
+            pass
+        if self.worker_thread.is_alive():
+            self.worker_thread.join(timeout=1)
+        if self.worker_thread.is_alive():
+            print("Warning: Audio worker thread did not terminate cleanly")
