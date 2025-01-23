@@ -263,11 +263,17 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
         traceback.print_exc()
         exit(1)
     finally:
+        print("Reached finally block")  # Debug print
         # Save any remaining audio
         if audio_buffer:
+            print("Saving audio to WAV")  # Debug print
             save_audio_to_wav(output_file, audio_buffer, sample_rate)
+        else:
+            print("No audio buffer to save")  # Debug print
 
+        print("Stopping audio generator")  # Debug print
         audio_gen.stop()
+        print("Audio generator stopped")  # Debug print
 
 def save_audio_to_wav(output_file, audio_buffer, sample_rate):
     """Save audio buffer to a WAV file"""
