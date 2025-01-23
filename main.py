@@ -215,6 +215,10 @@ def generate_audio_from_file(
 ):
     """Generate audio from a text file and save it to a WAV file"""
     sample_rate = int(22050 * speed)
+    total_file_size = os.path.getsize(input_path)
+    total_samples = 0
+    sentences_processed = 0
+    start_time = time.time()
 
     voices = get_available_voices()
     if not voices:
@@ -229,7 +233,9 @@ def generate_audio_from_file(
     audio_buffer = []
 
     try:
-        print("Starting audio generation process")  # Debug print
+        print(f"Generating audio from {os.path.basename(input_path)}")
+        print(f"Total file size: {total_file_size/1024:.1f} KB")
+        print("=" * 50)
 
         # Skip to the saved progress position
         sentence_index = 0
@@ -249,18 +255,31 @@ def generate_audio_from_file(
 
         # Start with the first sentence
         current_sentence = sentences[0] if sentences else None
-        if current_sentence:
-            print(f"Starting with sentence: {current_sentence}")  # Debug print
 
         # Main audio generation loop
         while len(sentences) > 0:
-            # remove the current sentence from the queue
             sentences.pop(0)
-            # Generate any available audio
+            sentences_processed += 1
+
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
                 audio_buffer.append(audio)
-                print(f"Generated audio chunk of size: {len(audio)}")  # Debug print
+                total_samples += len(audio)
+
+                # Calculate progress metrics
+                elapsed = time.time() - start_time
+                samples_sec = total_samples / elapsed if elapsed > 0 else 0
+                bytes_total = total_samples * 4  # 4 bytes per float32 sample
+                progress_percent = (sentences_processed / (sentences_processed + audio_gen.sentence_queue.qsize())) * 100
+
+                # Format progress output
+                progress = (
+                    f"\rProcessed: {sentences_processed} sentences "
+                    f"| Audio: {total_samples//1000}k samples ({bytes_total//1024} KB) "
+                    f"| Speed: {samples_sec//1000:.1f}k samples/s "
+                    f"| Progress: {progress_percent:.1f}%"
+                )
+                print(progress, end="", flush=True)
 
             # Get next sentence from stream if available
             current_sentence = next(sentence_stream, None)
@@ -297,19 +316,16 @@ def generate_audio_from_file(
         traceback.print_exc()
         exit(1)
     finally:
-        print("Reached finally block")  # Debug print
+        print(f"\n\nProcessing complete!")
+        print(f"Total sentences: {sentences_processed}")
+        print(f"Final audio length: {total_samples/sample_rate:.1f} seconds")
 
         # Save any remaining audio
         if audio_buffer:
-            print("Saving audio to WAV")  # Debug print
             save_audio_to_wav(output_file, audio_buffer, sample_rate)
-        else:
-            print("No audio buffer to save")  # Debug print
 
-        print("Stopping audio generator")  # Debug print
         # Request stop and wait with timeout
         audio_gen.stop()
-        print("Audio generator stopped")  # Debug print
 
 
 def save_audio_to_wav(output_file, audio_buffer, sample_rate):
