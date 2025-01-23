@@ -1,4 +1,4 @@
-# Audiobook Generator with Kokoro-82M
+# Audiobook Generator with [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)
 
 ## Introduction
 
