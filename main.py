@@ -55,62 +55,7 @@ def play_audio(audio, event, sample_rate=22050, return_audio=False):
         return audio
 
 
-def get_page_context(page_path, num_sentences=2):
-    """Get the first or last few sentences from a page"""
-    if not os.path.exists(page_path):
-        return ""
 
-    with open(page_path, "r", encoding="utf-8") as f:
-        text = f.read()
-        sentences = re.split(r"(?<=[.!?])\s+", text)
-        return " ".join(
-            sentences[:num_sentences]
-            if "prev" in str(page_path)
-            else sentences[-num_sentences:]
-        )
-
-
-
-def display_page(page_path, show_context=False):
-    """Display page text with optional context"""
-    # Extract page number from filename (format: page_XXX.txt)
-    page_num = int(Path(page_path).stem.split("_")[-1])
-    pages_dir = Path(page_path).parent
-
-    with open(page_path, "r", encoding="utf-8") as f:
-        if show_context:
-            # Get previous and next page paths
-            prev_page = pages_dir / f"page_{page_num-1:03d}.txt"
-            next_page = pages_dir / f"page_{page_num+1:03d}.txt"
-
-            # Get context from adjacent pages
-            prev_context = get_page_context(prev_page)
-            next_context = get_page_context(next_page, num_sentences=2)
-
-        page_text = f.read()
-        # Clean up text - preserve paragraph breaks but normalize other whitespace
-        cleaned_text = re.sub(
-            r"(?<!\n)\n(?!\n)", " ", page_text
-        )  # Convert single newlines to spaces
-        cleaned_text = re.sub(r"[ \t]+", " ", cleaned_text)  # Normalize spaces
-        cleaned_text = re.sub(
-            r"\n{3,}", "\n\n", cleaned_text
-        )  # Normalize multiple newlines
-        cleaned_text = cleaned_text.strip()
-
-        # Display page text with optional context
-        if show_context:
-            if prev_context:
-                print(f"\n[Previous page ending...]\n{prev_context}\n")
-
-        print(f"\n=== Page {page_num} ===\n")
-        print(f"{cleaned_text}")
-        print(f"\n=== End of Page {page_num} ===\n")
-
-        if show_context and next_context:
-            print(f"\n[Next page starting...]\n{next_context}\n")
-
-    return cleaned_text
 
 
 def stream_sentences(input_path):
@@ -138,7 +83,7 @@ def stream_sentences(input_path):
             yield re.sub(r"\n+", " ", buffer.strip())
 
 
-def play_book(input_path, voice=None, show_context=False, speed=1.0, save_audio=False):
+def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     # Set up audio saving if requested
     audio_buffer = []
     output_dir = None
@@ -282,11 +227,6 @@ def main():
         help="Playback speed multiplier (e.g. 1.5 for 50%% faster)",
     )
     parser.add_argument(
-        "--context",
-        action="store_true",
-        help="Show context from adjacent pages",
-    )
-    parser.add_argument(
         "--list-voices",
         action="store_true",
         help="List all available voice models and exit",
@@ -316,7 +256,6 @@ def main():
         play_book(
             args.input_file, 
             args.voice, 
-            args.context, 
             args.speed,
             args.save_audio
         )

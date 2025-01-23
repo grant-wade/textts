@@ -25,13 +25,13 @@ A text-to-speech audiobook generator that uses Kokoro-82M or Piper TTS for high-
 #### Windows
 
 ```powershell
-./setup.ps1
+.\setup.ps1
 ```
 
 #### Linux/macOS
 
 ```bash
-bash ./setup.sh
+bash setup.sh
 ```
 
 After setup, activate the virtual environment:
