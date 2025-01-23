@@ -2,3 +2,6 @@
 .env
 
 *_pages/
+*_audio/
+*.progress.json
+kokoro/
