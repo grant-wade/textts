@@ -2,25 +2,21 @@ import os
 import re
 import sys
 import argparse
-import numpy as np
-from pathlib import Path
-from kokoro.kokoro import phonemize, tokenize
-from onnxruntime import InferenceSession
-import torch
-import sounddevice as sd
-import threading
-import queue
 import time
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
+import numpy as np
+import wave
+import os
+import sounddevice as sd
+from pathlib import Path
+from utils.progress_tracker import FileReadingProgress
+from tts.audio_generator import AudioGenerator
 
 VOICE_NAME = "af"
-VOICEPACK = torch.load(f"kokoro/voices/{VOICE_NAME}.pt", weights_only=True).to(device)
 
 # Configuration
-KOKORO_PATH = Path.home() / "LLM" / "reader" / "kokoro"
+KOKORO_PATH = Path(".") / "kokoro"
 MODELS_DIR = KOKORO_PATH / "voices"
+
 
 
 def get_available_voices():
@@ -32,7 +28,7 @@ def get_available_voices():
     return voices
 
 
-def play_audio(audio, sample_rate=22050):
+def play_audio(audio, event, sample_rate=22050, return_audio=False):
     """Play audio array using sounddevice"""
     try:
         # Ensure audio is in the correct format (mono, float32)
@@ -42,13 +38,48 @@ def play_audio(audio, sample_rate=22050):
             audio = audio.astype(np.float32)
 
         # Normalize audio to prevent clipping
-        audio /= np.max(np.abs(audio))
+        audio_max = np.max(np.abs(audio))
+        if audio_max > 0:
+            audio /= audio_max
 
-        # Play audio and wait for it to finish
-        sd.play(audio, samplerate=sample_rate)
-        sd.wait()  # Block until audio is done
+        # Play audio non-blocking with callback
+        event.clear()
+        position = 0
+        total_samples = len(audio)
+        
+        def audio_callback(outdata, frames, time, status):
+            nonlocal position
+            remaining = total_samples - position
+            
+            if remaining <= 0:
+                outdata[:] = np.zeros_like(outdata)
+                raise sd.CallbackStop()
+                
+            # Get chunk and advance position
+            chunk_size = min(frames, remaining)
+            chunk = audio[position:position+chunk_size]
+            
+            # Ensure proper shape and padding
+            if len(chunk) < frames:
+                chunk = np.pad(chunk, (0, frames - len(chunk)), mode='constant')
+            
+            # Reshape and copy without explicit slicing
+            outdata[:] = chunk.reshape(-1, 1)
+            position += frames  # Always advance by full frame size
+            
+        stream = sd.RawOutputStream(
+            samplerate=sample_rate,
+            channels=1,
+            dtype='float32',
+            callback=audio_callback,
+            finished_callback=event.set
+        )
+        stream.start()
     except Exception as e:
         print(f"Error playing audio: {e}")
+    
+    if return_audio:
+        return audio
 
 
 def get_page_context(page_path, num_sentences=2):
@@ -65,78 +96,6 @@ def get_page_context(page_path, num_sentences=2):
             else sentences[-num_sentences:]
         )
 
-
-class AudioGenerator:
-    def __init__(self, voice_name):
-        self.voice_name = voice_name
-        self.audio_queue = queue.Queue()
-        self.stop_event = threading.Event()
-        self.worker_thread = None
-        self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
-
-    def _generate_audio_batch(self, text):
-        """Generate audio for a text batch in a thread"""
-        # Split text into paragraphs first
-        paragraphs = text.split("\n\n")
-
-        for paragraph in paragraphs:
-            # Split paragraph into sentences
-            sentences = re.split(r"(?<=[.!?])\s+", paragraph)
-
-            for sentence in sentences:
-                # Skip empty or whitespace-only sentences
-                if not sentence or sentence.isspace():
-                    continue
-
-                try:
-                    # Process each sentence individually
-                    phonemes = phonemize(sentence, self.voice_name[0])
-                    tokens = tokenize(phonemes)
-                    self._process_token_batch(tokens)
-                except Exception as e:
-                    print(f"Error processing sentence: {e}")
-                    print(f"Sentence: {sentence}")
-                    continue
-
-    def _process_token_batch(self, tokens):
-        """Process a batch of tokens and add to audio queue"""
-        try:
-            if not tokens:  # Skip empty token batches
-                return
-
-            ref_s = torch.load(
-                f"kokoro/voices/{self.voice_name}.pt", weights_only=True
-            )[len(tokens)].numpy()
-            tokens = [[0, *tokens, 0]]
-            audio = self.sess.run(
-                None, dict(tokens=tokens, style=ref_s, speed=np.ones(1, np.float32))
-            )[0]
-            self.audio_queue.put(audio)
-        except Exception as e:
-            print(f"Error processing token batch: {e}")
-
-    def start_generation(self, text):
-        """Start audio generation in a background thread"""
-        self.stop_event.clear()
-        self.worker_thread = threading.Thread(
-            target=self._generate_audio_batch, args=(text,)
-        )
-        self.worker_thread.start()
-
-    def get_next_audio(self):
-        """Get the next audio chunk from the queue"""
-        try:
-            return self.audio_queue.get(timeout=0.1)
-        except queue.Empty:
-            return None
-
-    def stop(self):
-        """Stop generation and clean up"""
-        self.stop_event.set()
-        if self.worker_thread and self.worker_thread.is_alive():
-            self.worker_thread.join()
-        while not self.audio_queue.empty():
-            self.audio_queue.get()
 
 
 def display_page(page_path, show_context=False):
@@ -181,52 +140,6 @@ def display_page(page_path, show_context=False):
     return cleaned_text
 
 
-def play_book(input_path, voice=None, show_context=False):
-    """Stream and play a book using TTS"""
-    voices = get_available_voices()
-    if not voices:
-        print("Error: No voices found. Please download voices to:")
-        print(MODELS_DIR)
-        return
-
-    # Use first voice by default if none specified
-    selected_voice = voice if voice else voices[0]
-    audio_gen = AudioGenerator(selected_voice)
-
-    try:
-        print("Starting playback... (press Ctrl+C to stop)")
-
-        # Process sentences one at a time
-        for sentence in stream_sentences(input_path):
-            # Display current sentence
-            print(f"\n{sentence}\n")
-
-            # Generate and play audio for this sentence
-            audio_gen.start_generation(sentence)
-
-            # Get and play the generated audio
-            while True:
-                audio = audio_gen.get_next_audio()
-                if audio is None:
-                    break
-
-                # Play the audio and wait for it to finish
-                play_audio(audio)
-                while sd.get_stream().active:
-                    time.sleep(0.01)
-
-            # Clear any remaining audio in the queue
-            while not audio_gen.audio_queue.empty():
-                audio_gen.audio_queue.get()
-
-    except KeyboardInterrupt:
-        print("\nStopping playback...")
-    except Exception as e:
-        print(f"Error playing page: {e}")
-    finally:
-        audio_gen.stop()
-
-
 def stream_sentences(input_path):
     """Stream sentences from input file"""
     with open(input_path, "r", encoding="utf-8") as f:
@@ -235,6 +148,8 @@ def stream_sentences(input_path):
             chunk = f.read(4096)  # Read in chunks
             if not chunk:
                 break
+            # Remove "- " strings from the text
+            chunk = chunk.replace("- ", "")
             buffer += chunk
             # Split on sentence boundaries
             sentences = re.split(r"(?<=[.!?])\s+", buffer)
@@ -250,6 +165,125 @@ def stream_sentences(input_path):
             yield re.sub(r"\n+", " ", buffer.strip())
 
 
+def play_book(input_path, voice=None, show_context=False, speed=1.0, save_audio=False):
+    # Set up audio saving if requested
+    audio_buffer = []
+    output_dir = None
+    file_counter = 1
+    sample_rate = int(22050 * speed)
+    samples_per_minute = sample_rate * 60
+    
+    if save_audio:
+        base_name = os.path.splitext(os.path.basename(input_path))[0]
+        output_dir = Path(f"{base_name}_audio")
+        output_dir.mkdir(exist_ok=True)
+    """Stream and play a book using TTS"""
+    voices = get_available_voices()
+    if not voices:
+        print("Error: No voices found. Please download voices to:")
+        print(MODELS_DIR)
+        return
+
+    selected_voice = voice if voice else voices[0]
+    audio_gen = AudioGenerator(selected_voice)
+    progress = FileReadingProgress(input_path)
+    sentence_stream = stream_sentences(input_path)
+
+    try:
+        # Skip to the saved progress position
+        sentence_index = 0
+        while sentence_index < progress.get_progress():
+            next(sentence_stream, None)
+            sentence_index += 1
+        
+        # Pre-fill the pipeline with more sentences
+        prefill_count = 10  # Increased pre-fill buffer
+        sentences = []
+        for _ in range(prefill_count):
+            sentence = next(sentence_stream, None)
+            if sentence:
+                sentences.append(sentence)
+                audio_gen.add_sentence(sentence)
+        
+        # Display initial status
+        if sentences:
+            print(f"\nPre-filling audio queue with {len(sentences)} sentences...")
+
+        # Start with the first sentence
+        current_sentence = sentences[0] if sentences else None
+
+        # Main playback loop
+        while len(sentences) > 0 or not audio_gen.audio_queue.empty():
+            # Play any available audio
+            audio = audio_gen.get_audio()
+            if audio is not None and len(audio) > 0:
+                played_sentence = sentences.pop(0)
+                print(f"{played_sentence}\n")
+                played_audio = play_audio(
+                    audio, 
+                    audio_gen.audio_done_event, 
+                    sample_rate=sample_rate,
+                    return_audio=save_audio
+                )
+                
+                if save_audio and played_audio is not None:
+                    audio_buffer.append(played_audio)
+                    # Save when we have at least 1 minute of audio
+                    if sum(len(chunk) for chunk in audio_buffer) >= samples_per_minute:
+                        output_file = output_dir / f"{file_counter:04d}.wav"
+                        with wave.open(str(output_file), "wb") as wf:
+                            wf.setnchannels(1)
+                            wf.setsampwidth(2)
+                            wf.setframerate(sample_rate)
+                            concatenated = np.concatenate(audio_buffer).astype(np.float32)
+                            wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
+                        audio_buffer = []
+                        file_counter += 1
+                
+                # Wait for current audio to finish before continuing
+                audio_gen.audio_done_event.wait()
+                
+                # Update progress after audio completes
+                progress.update_progress(sentence_index)
+                sentence_index += 1
+
+            # Get next sentence from stream if available
+            current_sentence = next(sentence_stream, None)
+            if current_sentence:
+                sentences.append(current_sentence)
+                audio_gen.add_sentence(current_sentence)
+            
+            # Don't spin too fast if queue is empty
+            if len(sentences) == 0 and not audio_gen.stop_event.is_set():
+                time.sleep(0.1)
+
+        # Final wait for last audio to finish
+        audio_gen.audio_done_event.wait()
+
+    except KeyboardInterrupt:
+        print("\nStopping playback...")
+        progress.save_progress()
+        print(f"Progress saved at sentence {progress.get_progress()}")
+        exit(1)
+    except Exception as e:
+        print(f"Error playing page: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
+    finally:
+        # Save any remaining audio
+        if save_audio and audio_buffer:
+            output_file = output_dir / f"{file_counter:04d}.wav"
+            with wave.open(str(output_file), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                concatenated = np.concatenate(audio_buffer).astype(np.float32)
+                wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
+        
+        audio_gen.stop()
+
+
 def validate_arguments(args):
     """Validate the provided arguments"""
     if not os.path.exists(args.input_file):
@@ -260,10 +294,6 @@ def validate_arguments(args):
         print(f"Error: Voice '{args.voice}' not found")
         sys.exit(1)
 
-    if args.page is not None and args.page < 0:
-        print("Error: Page number must be positive")
-        sys.exit(1)
-
 
 def main():
     """Main entry point for the script"""
@@ -271,14 +301,12 @@ def main():
         description="Split book into pages and optionally play them using Piper TTS"
     )
     parser.add_argument("input_file", nargs="?", help="Path to the input text file")
-    parser.add_argument(
-        "page", nargs="?", type=int, help="Page number to play (optional)"
-    )
     parser.add_argument("--voice", help="Voice to use for TTS (optional)")
     parser.add_argument(
-        "--continue",
-        action="store_true",
-        help="Continue playing subsequent pages after the specified page",
+        "--speed",
+        type=float,
+        default=1.0,
+        help="Playback speed multiplier (e.g. 1.5 for 50%% faster)",
     )
     parser.add_argument(
         "--context",
@@ -289,6 +317,11 @@ def main():
         "--list-voices",
         action="store_true",
         help="List all available voice models and exit",
+    )
+    parser.add_argument(
+        "--save-audio",
+        action="store_true",
+        help="Save generated audio to WAV files in a directory named after the input file",
     )
 
     args = parser.parse_args()
@@ -307,7 +340,13 @@ def main():
 
     if not args.list_voices:
         validate_arguments(args)
-        play_book(args.input_file, args.voice, args.context)
+        play_book(
+            args.input_file, 
+            args.voice, 
+            args.context, 
+            args.speed,
+            args.save_audio
+        )
 
 
 if __name__ == "__main__":
