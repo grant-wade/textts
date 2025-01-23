@@ -1,7 +1,9 @@
-# Audiobook Generator with Piper TTS
+# Audiobook Generator with Kokoro-82M
 
 ## Introduction
-A text-to-speech audiobook generator that uses Piper TTS for high-quality voice synthesis. Features include:
+
+A text-to-speech audiobook generator that uses Kokoro-82M or Piper TTS for high-quality voice synthesis. Features include:
+
 - Book splitting into manageable pages
 - Progress tracking and resuming
 - Cross-platform support
@@ -12,6 +14,7 @@ A text-to-speech audiobook generator that uses Piper TTS for high-quality voice 
 ## Installation
 
 ### Prerequisites
+
 - Python 3.8+
 - git
 - git-lfs
@@ -19,21 +22,25 @@ A text-to-speech audiobook generator that uses Piper TTS for high-quality voice 
 ### Setup Steps
 
 #### Windows
+
 ```powershell
 ./setup.ps1
 ```
 
 #### Linux/macOS
+
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
 After setup, activate the virtual environment:
+
 - Windows: `.\venv\Scripts\Activate.ps1`
 - Linux/macOS: `source venv/bin/activate`
 
 Download voice models using git-lfs:
+
 ```bash
 git clone https://huggingface.co/hexgrad/Kokoro-82M
 ```
@@ -41,23 +48,26 @@ git clone https://huggingface.co/hexgrad/Kokoro-82M
 ## Usage
 
 Basic command:
+
 ```bash
 python main.py [input_file.txt] [options]
 ```
 
 Options:
+
 - `--voice [VOICE_NAME]`: Select TTS voice (default: af)
 - `--speed [MULTIPLIER]`: Adjust playback speed (default: 1.0)
-- `--context`: Show context from previous/next pages
-- `--list-voices`: Show available voices
+- `--list-voices`: Show available voices (used on it's own)
 - `--save-audio`: Save generated audio to WAV files
 
 Example with options:
+
 ```bash
-python main.py book.txt --voice kokoro --speed 1.2 --context --save-audio
+python main.py book.txt --voice af --speed 1.2 --save-audio
 ```
 
 ## Technology Stack
+
 - **Core TTS Engine**: Piper TTS
 - **Text Processing**: Custom sentence segmentation and context preservation
 - **Audio Playback**: sounddevice library with numpy-based processing
