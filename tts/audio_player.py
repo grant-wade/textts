@@ -1,14 +1,12 @@
 import os
-import re
 import time
 import numpy as np
 import sounddevice as sd
-from pathlib import Path
 from utils.progress_tracker import FileReadingProgress
 from tts.audio_generator import AudioGenerator
 from config.settings import MODELS_DIR
 from tts.voice_utils import get_available_voices
-from tts.audio_processor import save_audio_to_wav
+from tts.utilities import stream_sentences, save_audio_to_wav
 
 def play_audio(audio, event, sample_rate=22050, return_audio=False):
     """Play audio array using sounddevice"""
@@ -36,29 +34,6 @@ def play_audio(audio, event, sample_rate=22050, return_audio=False):
     if return_audio:
         return audio
 
-def stream_sentences(input_path):
-    """Stream sentences from input file"""
-    with open(input_path, "r", encoding="utf-8") as f:
-        buffer = ""
-        while True:
-            chunk = f.read(4096)  # Read in chunks
-            if not chunk:
-                break
-            # Remove "- " strings from the text
-            chunk = chunk.replace("- ", "")
-            buffer += chunk
-            # Split on sentence boundaries
-            sentences = re.split(r"(?<=[.!?])\s+", buffer)
-            # Keep last partial sentence in buffer
-            buffer = sentences.pop(-1) if len(sentences) > 1 else buffer
-            for sentence in sentences:
-                if sentence.strip():  # Skip empty sentences
-                    # Remove extra newlines while preserving sentence structure
-                    cleaned = re.sub(r"\n+", "", sentence.strip())
-                    yield cleaned
-        # Yield any remaining text
-        if buffer.strip():
-            yield re.sub(r"\n+", " ", buffer.strip())
 
 def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     # Set up audio saving if requested
