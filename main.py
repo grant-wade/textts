@@ -136,28 +136,16 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
                 played_sentence = sentences.pop(0)
-                print(f"{played_sentence}\n")
                 played_audio = play_audio(
-                    audio, 
-                    audio_gen.audio_done_event, 
+                    audio,
+                    audio_gen.audio_done_event,
                     sample_rate=sample_rate,
-                    return_audio=save_audio
+                    return_audio=True
                 )
                 
-                if save_audio and played_audio is not None:
+                if played_audio is not None:
                     audio_buffer.append(played_audio)
-                    # Save when we have at least 1 minute of audio
-                    if sum(len(chunk) for chunk in audio_buffer) >= samples_per_minute:
-                        output_file = output_dir / f"{file_counter:04d}.wav"
-                        with wave.open(str(output_file), "wb") as wf:
-                            wf.setnchannels(1)
-                            wf.setsampwidth(2)
-                            wf.setframerate(sample_rate)
-                            concatenated = np.concatenate(audio_buffer).astype(np.float32)
-                            wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
-                        audio_buffer = []
-                        file_counter += 1
-                
+                    
                 # Wait for current audio to finish with timeout
                 audio_gen.audio_done_event.wait(10)  # 10 second timeout
                 
@@ -191,13 +179,8 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     finally:
         # Save any remaining audio
         if audio_buffer:
-            with wave.open(output_file, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(sample_rate)
-                concatenated = np.concatenate(audio_buffer).astype(np.float32)
-                wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
-        
+            save_audio_to_wav(output_file, audio_buffer, sample_rate)
+            
         audio_gen.stop()
 
 
@@ -275,14 +258,18 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
     finally:
         # Save any remaining audio
         if audio_buffer:
-            with wave.open(output_file, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(sample_rate)
-                concatenated = np.concatenate(audio_buffer).astype(np.float32)
-                wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
+            save_audio_to_wav(output_file, audio_buffer, sample_rate)
 
         audio_gen.stop()
+
+def save_audio_to_wav(output_file, audio_buffer, sample_rate):
+    """Save audio buffer to a WAV file"""
+    with wave.open(output_file, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        concatenated = np.concatenate(audio_buffer).astype(np.float32)
+        wf.writeframes((concatenated * 32767).astype(np.int16).tobytes())
 
 def main():
     """Main entry point for the script"""
