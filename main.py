@@ -167,7 +167,11 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
                     stream_exhausted = True
 
             # Exit condition: All streams processed and queues empty
-            if stream_exhausted and not audio_gen.is_processing() and len(sentences) == 0:
+            if (
+                stream_exhausted
+                and not audio_gen.is_processing()
+                and len(sentences) == 0
+            ):
                 break
 
             # Prevent CPU spin
@@ -270,7 +274,11 @@ def generate_audio_from_file(
                 print("Waiting for more sentences or audio")  # Debug print
                 time.sleep(0.1)
 
-        # Ensure the sentence queue is empty
+        while audio_gen.sentence_queue.qsize() > 0 or audio_gen.audio_queue.qsize() > 0:
+            audio = audio_gen.get_audio()
+            if audio is not None and len(audio) > 0:
+                audio_buffer.append(audio)
+                print(f"Generated audio chunk of size: {len(audio)}")
 
         # Final wait for last audio to finish
         print("Waiting for last audio to finish")  # Debug print
