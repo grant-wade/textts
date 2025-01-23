@@ -264,6 +264,9 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
         exit(1)
     finally:
         print("Reached finally block")  # Debug print
+        # Send sentinel value to stop the worker thread
+        audio_gen.sentence_queue.put(None)
+            
         # Save any remaining audio
         if audio_buffer:
             print("Saving audio to WAV")  # Debug print

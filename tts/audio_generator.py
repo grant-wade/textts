@@ -23,6 +23,7 @@ class AudioGenerator:
             try:
                 sentence = self.sentence_queue.get(timeout=0.1)
                 if sentence is None:  # Sentinel value
+                    print("Received sentinel value, stopping worker")  # Debug print
                     break
                     
                 # Split and process long sentences
