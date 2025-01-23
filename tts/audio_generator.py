@@ -23,9 +23,6 @@ class AudioGenerator:
         while not self.stop_event.is_set():
             try:
                 sentence = self.sentence_queue.get(timeout=0.1)
-                if sentence is None:  # Sentinel value
-                    print("Received sentinel value, stopping worker")  # Debug print
-                    break
 
                 # Split and process long sentences
                 sentence_parts = self._split_sentence(sentence)
@@ -101,27 +98,7 @@ class AudioGenerator:
         """Stop the worker thread"""
         self.stop_event.set()
         
-        # Clear queues to unblock thread
-        while not self.sentence_queue.empty():
-            try:
-                self.sentence_queue.get_nowait()
-            except queue.Empty:
-                break
-                
-        # Send explicit None to break queue.get() block
-        try:
-            self.sentence_queue.put_nowait(None)
-        except queue.Full:
-            pass
-        
-        # Handle audio queue cleanup
-        while not self.audio_queue.empty():
-            try:
-                self.audio_queue.get_nowait()
-            except queue.Empty:
-                break
-        
         if self.worker_thread.is_alive():
-            self.worker_thread.join(timeout=0.5)
+            self.worker_thread.join(timeout=1.0)  # Increase timeout slightly
             if self.worker_thread.is_alive():
                 print("Warning: Audio worker thread did not terminate cleanly")
