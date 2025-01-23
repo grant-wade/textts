@@ -270,8 +270,6 @@ def generate_audio_from_file(
 
         # Final wait for last audio to finish
         print("Waiting for last audio to finish")  # Debug print
-        # Send sentinel value to stop the worker thread
-        audio_gen.sentence_queue.put(None)
         audio_gen.audio_done_event.wait()
         print("Last audio finished")  # Debug print
 
