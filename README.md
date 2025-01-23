@@ -53,11 +53,23 @@ Options:
 - `--speed [MULTIPLIER]`: Adjust playback speed (default: 1.0)
 - `--list-voices`: Show available voices (used on it's own)
 - `--save-audio`: Save generated audio to WAV files
+- `--generate-audio [OUTPUT_FILE]`: Generate audio from the input file and save to specified output file
 
-Example with options:
+Examples:
 
+Play book with options:
 ```bash
 python main.py book.txt --voice af --speed 1.2 --save-audio
+```
+
+Generate audio file:
+```bash
+python main.py book.txt --voice af --speed 1.0 --generate-audio output.wav
+```
+
+List available voices:
+```bash
+python main.py --list-voices
 ```
 
 ## Technology Stack
