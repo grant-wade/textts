@@ -6,12 +6,12 @@ python -m venv venv
 pip install --upgrade pip
 pip install onnxruntime phonemizer torch numpy
 
-# Check for git-lfs installation
+# Check for git-lfs 
 if (-not (Get-Command git-lfs -ErrorAction SilentlyContinue)) {
-    Write-Host "Error: git-lfs is required but not installed. Please install from https://git-lfs.com"
-    exit 1
+    Write-Host "git-lfs not found. Attempting to install..."
+    git lfs install
+    Write-Host "git-lfs installed!"
 }
-git lfs install
 
 # Download kokomo voice model with LFS
 git clone https://huggingface.co/hexgrad/Kokoro-82M
