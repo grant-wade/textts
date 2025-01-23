@@ -85,7 +85,11 @@ class AudioGenerator:
 
     def add_sentence(self, sentence):
         """Add a sentence to be processed"""
-        self.sentence_queue.put(sentence)
+        # Non-blocking put with size check
+        if self.sentence_queue.qsize() < self.sentence_queue.maxsize:
+            self.sentence_queue.put(sentence)
+        else:
+            time.sleep(0.1)  # Wait before retrying
 
     def get_audio(self):
         """Get generated audio"""
@@ -93,6 +97,14 @@ class AudioGenerator:
             return self.audio_queue.get(timeout=0.1)
         except queue.Empty:
             return None
+
+    def is_processing(self):
+        """Check if there's pending work or audio"""
+        return not self.sentence_queue.empty() or not self.audio_queue.empty()
+
+    def has_pending_sentences(self):
+        """Check if there are sentences waiting to be processed"""
+        return not self.sentence_queue.empty()
 
     def stop(self):
         """Stop the worker thread"""

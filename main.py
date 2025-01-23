@@ -134,7 +134,8 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
         current_sentence = sentences[0] if sentences else None
 
         # Main playback loop
-        while len(sentences) > 0 or not audio_gen.audio_queue.empty():
+        stream_exhausted = False
+        while True:
             # Play any available audio
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
@@ -150,21 +151,27 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
                     audio_buffer.append(played_audio)
 
                 # Wait for current audio to finish with timeout
-                audio_gen.audio_done_event.wait(10)  # 10 second timeout
+                audio_gen.audio_done_event.wait(10)
 
                 # Update progress after audio completes
                 progress.update_progress(sentence_index)
                 sentence_index += 1
 
-            # Get next sentence from stream if available
-            current_sentence = next(sentence_stream, None)
-            if current_sentence:
-                sentences.append(current_sentence)
-                audio_gen.add_sentence(current_sentence)
+            # Get next sentences until queue is full or stream exhausted
+            while not stream_exhausted and audio_gen.sentence_queue.qsize() < 15:
+                current_sentence = next(sentence_stream, None)
+                if current_sentence:
+                    sentences.append(current_sentence)
+                    audio_gen.add_sentence(current_sentence)
+                else:
+                    stream_exhausted = True
 
-            # Don't spin too fast if queue is empty
-            if len(sentences) == 0 and not audio_gen.stop_event.is_set():
-                time.sleep(0.1)
+            # Exit condition: All streams processed and queues empty
+            if stream_exhausted and not audio_gen.is_processing() and len(sentences) == 0:
+                break
+
+            # Prevent CPU spin
+            time.sleep(0.1)
 
         # Final wait for last audio to finish
         audio_gen.audio_done_event.wait()
