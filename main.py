@@ -296,12 +296,11 @@ def generate_audio_from_file(
                 time.sleep(0.1)
 
         # Final wait for last audio to finish
-        print("Waiting for last audio to finish")  # Debug print
-        audio_gen.audio_done_event.wait()
-        print("Last audio finished")  # Debug print
+        while audio_gen.audio_queue.qsize() > 0:
+            time.sleep(0.1)
 
         # Stop the audio generator
-        print("Stopping audio generator")  # Debug print
+        print("\n\nStopping audio generator")  # Debug print
         audio_gen.stop()
         print("Audio generator stopped")  # Debug print
 
