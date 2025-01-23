@@ -263,10 +263,20 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
                 print("Waiting for more sentences or audio")  # Debug print
                 time.sleep(0.1)
 
+        # Ensure the sentence queue is empty
+        while not audio_gen.sentence_queue.empty():
+            print("Waiting for sentence queue to empty")  # Debug print
+            time.sleep(0.1)
+
         # Final wait for last audio to finish
         print("Waiting for last audio to finish")  # Debug print
         audio_gen.audio_done_event.wait()
         print("Last audio finished")  # Debug print
+
+        # Stop the audio generator
+        print("Stopping audio generator")  # Debug print
+        audio_gen.stop()
+        print("Audio generator stopped")  # Debug print
 
     except Exception as e:
         print(f"Error generating audio: {e}")
