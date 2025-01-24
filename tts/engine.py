@@ -36,14 +36,17 @@ class TTSEngine:
         if not text.strip():  # Skip empty text
             return
             
-        generator = AudioGenerator(self.config.voice_name)
+        generator = AudioGenerator(
+            voice_name=self.config.voice_name,
+            speed=self.config.speed  # Pass speed parameter
+        )
         event = threading.Event()
         
         try:
             # Print the text being spoken
             print(f"\nSpeaking: {text}")
             
-            # Add sentence to queue
+            # Add sentence to queue and wait for processing
             generator.add_sentence(text)
             
             # Process audio chunks as they become available
@@ -52,7 +55,9 @@ class TTSEngine:
                 if audio is not None and len(audio) > 0:
                     from tts.audio_player import play_audio
                     play_audio(audio, event, self.config.sample_rate)
-                
+                elif generator.processing_complete and generator.audio_queue.empty():
+                    break
+                    
         except Exception as e:
             print(f"Failed to generate/play audio: {str(e)}")
         finally:

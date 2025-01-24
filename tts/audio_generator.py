@@ -68,8 +68,8 @@ class BaseAudioGenerator:
 
 
 class AudioGenerator(BaseAudioGenerator):
-    def __init__(self, voice_name):
-        super().__init__(voice_name)
+    def __init__(self, voice_name, speed=1.0):
+        super().__init__(voice_name, speed)  # Pass speed to parent class
         self.sentence_queue = queue.Queue(maxsize=20)  # Increased buffer sizes
         self.audio_queue = queue.Queue(maxsize=20)
         self.audio_done_event = threading.Event()
