@@ -55,12 +55,12 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
                 bytes_total = total_samples * 2
 
                 # Format progress output
-                progress = (
+                progress_output = (
                     f"\rProcessed: {sentences_processed} sentences "
                     f"| Audio: {total_samples//1000}k samples ({bytes_total//1024} KB) "
                     f"| Speed: {samples_sec//1000:.1f}k samples/s"
                 )
-                print(progress, end="", flush=True)
+                print(progress_output, end="", flush=True)
 
             # Update progress
             progress.update_progress(sentence_index)
