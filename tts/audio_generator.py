@@ -6,9 +6,36 @@ import torch
 from onnxruntime import InferenceSession
 from kokoro.kokoro import phonemize, tokenize
 
-class AudioGenerator:
-    def __init__(self, voice_name):
+class BaseAudioGenerator:
+    def __init__(self, voice_name, speed=1.0):
         self.voice_name = voice_name
+        self.speed = speed
+        self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
+
+
+    def _generate_audio_for_part(self, part):
+        """Generate audio for a single text part"""
+        phonemes = phonemize(part, self.voice_name[0])
+        tokens = tokenize(phonemes)
+
+        if tokens:
+            ref_s = torch.load(
+                f"kokoro/voices/{self.voice_name}.pt", weights_only=True
+            )[len(tokens)].numpy()
+            tokens = [[0, *tokens, 0]]
+            return self.sess.run(
+                None,
+                dict(
+                    tokens=tokens, 
+                    style=ref_s, 
+                    speed=np.ones(1, np.float32) * self.speed
+                ),
+            )[0]
+        return None
+
+class AudioGenerator(BaseAudioGenerator):
+    def __init__(self, voice_name):
+        super().__init__(voice_name)
         self.sentence_queue = queue.Queue(maxsize=20)  # Increased buffer sizes
         self.audio_queue = queue.Queue(maxsize=20)
         self.audio_done_event = threading.Event()
@@ -16,7 +43,6 @@ class AudioGenerator:
         self.stop_event = threading.Event()
         self.processing_complete = False
         self.worker_thread = threading.Thread(target=self._worker)
-        self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
         self.worker_thread.start()
 
     def _worker(self):
@@ -34,20 +60,8 @@ class AudioGenerator:
                 for part in sentence_parts:
                     if self.stop_event.is_set():  # Check before each part
                         break
-                    phonemes = phonemize(part, self.voice_name[0])
-                    tokens = tokenize(phonemes)
-
-                    if tokens:
-                        ref_s = torch.load(
-                            f"kokoro/voices/{self.voice_name}.pt", weights_only=True
-                        )[len(tokens)].numpy()
-                        tokens = [[0, *tokens, 0]]
-                        audio = self.sess.run(
-                            None,
-                            dict(
-                                tokens=tokens, style=ref_s, speed=np.ones(1, np.float32)
-                            ),
-                        )[0]
+                    audio = self._generate_audio_for_part(part)
+                    if audio is not None:
                         audio_chunks.append(audio)
 
                 # Merge audio chunks and add to queue
@@ -146,36 +160,21 @@ class AudioGenerator:
                     except queue.Empty:
                         break
 
-class AudioGeneratorSync:
+class AudioGeneratorSync(BaseAudioGenerator):
     def __init__(self, voice_name, sample_rate=22050, volume=1.0, speed=1.0):
-        self.voice_name = voice_name
+        super().__init__(voice_name, speed)
         self.sample_rate = sample_rate
         self.volume = volume
-        self.speed = speed
-        self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
         self.current_audio = None
 
     def add_sentence(self, sentence):
         """Add a sentence to generate audio for"""
-        # Process the sentence synchronously
         sentence_parts = self._split_sentence(sentence)
         audio_chunks = []
 
         for part in sentence_parts:
-            phonemes = phonemize(part, self.voice_name[0])
-            tokens = tokenize(phonemes)
-
-            if tokens:
-                ref_s = torch.load(
-                    f"kokoro/voices/{self.voice_name}.pt", weights_only=True
-                )[len(tokens)].numpy()
-                tokens = [[0, *tokens, 0]]
-                audio = self.sess.run(
-                    None,
-                    dict(
-                        tokens=tokens, style=ref_s, speed=np.ones(1, np.float32) * self.speed
-                    ),
-                )[0]
+            audio = self._generate_audio_for_part(part)
+            if audio is not None:
                 audio_chunks.append(audio)
 
         if audio_chunks:
@@ -186,32 +185,3 @@ class AudioGeneratorSync:
     def get_audio(self):
         """Get the generated audio data"""
         return self.current_audio
-
-    def _split_sentence(self, sentence, max_len=400):
-        """Split sentences at reasonable boundaries while preserving meaning"""
-        parts = []
-        current = sentence.strip()
-
-        while len(current) > max_len:
-            # Prefer to split at sentence boundaries first
-            split_pos = max(
-                current.rfind(". ", 0, max_len),
-                current.rfind("? ", 0, max_len),
-                current.rfind("! ", 0, max_len),
-            )
-
-            # If no sentence boundary found, look for other whitespace
-            if split_pos == -1:
-                split_pos = current.rfind(" ", 0, max_len)
-
-            # If no whitespace at all, force split
-            if split_pos == -1:
-                split_pos = max_len
-
-            parts.append(current[: split_pos + 1].strip())
-            current = current[split_pos + 1 :].lstrip()
-
-        if current:
-            parts.append(current)
-
-        return parts
