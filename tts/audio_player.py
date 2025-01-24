@@ -97,6 +97,8 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
             audio = audio_gen.get_audio()
             if audio is not None and len(audio) > 0:
                 played_sentence = sentences.pop(0)
+                # Display the sentence being played
+                print(f"\n{played_sentence}")
                 played_audio = play_audio(
                     audio,
                     audio_gen.audio_done_event,
@@ -104,8 +106,6 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
                     return_audio=True,
                 )
 
-                # Display the sentence being played
-                print(f"\nPlaying: {played_sentence}")
 
                 if played_audio is not None:
                     audio_buffer.append(played_audio)
