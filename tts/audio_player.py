@@ -104,6 +104,9 @@ def play_book(input_path, voice=None, speed=1.0, save_audio=False):
                     return_audio=True,
                 )
 
+                # Display the sentence being played
+                print(f"\nPlaying: {played_sentence}")
+
                 if played_audio is not None:
                     audio_buffer.append(played_audio)
 
