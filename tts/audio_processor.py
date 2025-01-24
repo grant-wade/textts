@@ -23,7 +23,6 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
 
     selected_voice = voice if voice else voices[0]
     audio_gen = AudioGeneratorSync(selected_voice, speed=speed)
-    progress = FileReadingProgress(input_path)
     sentence_stream = stream_sentences(input_path)
     audio_buffer = []
 
@@ -31,12 +30,6 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
         print(f"Generating audio from {os.path.basename(input_path)}")
         print(f"Total file size: {total_file_size/1024:.1f} KB")
         print("=" * 50)
-
-        # Skip to the saved progress position
-        sentence_index = 0
-        while sentence_index < progress.get_progress():
-            next(sentence_stream, None)
-            sentence_index += 1
 
         # Main audio generation loop
         for sentence in sentence_stream:
@@ -61,10 +54,6 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
                     f"| Speed: {samples_sec//1000:.1f}k samples/s"
                 )
                 print(progress_output, end="", flush=True)
-
-            # Update progress
-            progress.update_progress(sentence_index)
-            sentence_index += 1
 
     except Exception as e:
         print(f"Error generating audio: {e}")
