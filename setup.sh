@@ -6,7 +6,7 @@ python3 -m venv venv
 # Activate venv and install packages
 source venv/bin/activate
 pip install --upgrade pip
-pip install onnxruntime phonemizer torch numpy
+pip install onnxruntime phonemizer torch numpy sounddevice
 
 # Check for git-lfs installation
 if ! command -v git-lfs &>/dev/null; then
@@ -16,7 +16,7 @@ if ! command -v git-lfs &>/dev/null; then
 fi
 
 # Download kokomo voice model with LFS
-git clone https://huggingface.co/hexgrad/Kokoro-82M
+git clone https://huggingface.co/hexgrad/Kokoro-82M kokoro
 
 echo ""
 echo "Setup complete! Activate the virtual environment with:"
