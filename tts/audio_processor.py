@@ -1,7 +1,7 @@
 import os
 import time
 import numpy as np
-from tts.audio_generator import AudioGenerator
+from tts.audio_generator import AudioGeneratorSync
 from utils.progress_tracker import FileReadingProgress
 from config.settings import MODELS_DIR
 from tts.voice_utils import get_available_voices
