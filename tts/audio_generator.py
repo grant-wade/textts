@@ -20,6 +20,17 @@ def suppress_stdout():
         finally:
             sys.stdout = old_stdout
 
+@contextmanager
+def supress_stderr():
+    with open(os.devnull, "w") as devnull:
+        old_stderr = sys.stderr
+        sys.stderr = devnull
+        try:
+            yield
+        finally:
+            sys.stderr = old_stderr
+        
+
 class BaseAudioGenerator:
     def __init__(self, voice_name, speed=1.0):
         self.voice_name = voice_name
@@ -65,6 +76,7 @@ class BaseAudioGenerator:
                 ref_s = torch.load(
                     f"kokoro/voices/{self.voice_name}.pt", weights_only=True
                 )[len(tokens)].numpy()
+                print(f"Token Count w/ Padding: {len(tokens) + 2}")
                 tokens = [[0, *tokens, 0]]
                 return self.sess.run(
                     None,
