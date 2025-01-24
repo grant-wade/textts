@@ -28,31 +28,61 @@ class TTSEngine:
             else:
                 raise ValueError("No voices available. Please download voices first.")
         
-    def speak(self, text: str) -> None:
-        """Speak text synchronously"""
-        from tts.audio_generator import AudioGeneratorSync
-        from tts.audio_player import play_audio
+    def speak_live(self, text: str) -> None:
+        """Speak text using async generator for live playback"""
+        from tts.audio_generator import AudioGenerator
         import threading
         
         if not text.strip():  # Skip empty text
             return
             
-        generator = AudioGeneratorSync(
-            voice_name=self.config.voice_name,  # This should now always have a valid voice
-            speed=self.config.speed,
-            volume=self.config.volume,
-            sample_rate=self.config.sample_rate
-        )
+        generator = AudioGenerator(self.config.voice_name)
+        event = threading.Event()
         
         try:
-            audio = generator.add_sentence(text)
-            if audio is not None and len(audio) > 0:
-                event = threading.Event()
-                play_audio(audio, event, self.config.sample_rate)
-            else:
-                print(f"Warning: No audio generated for text: {text}")
+            # Add sentence to queue
+            generator.add_sentence(text)
+            
+            # Process audio chunks as they become available
+            while generator.is_processing() or not event.is_set():
+                audio = generator.get_audio()
+                if audio is not None and len(audio) > 0:
+                    from tts.audio_player import play_audio
+                    play_audio(audio, event, self.config.sample_rate)
+                
         except Exception as e:
             print(f"Failed to generate/play audio: {str(e)}")
+        finally:
+            generator.stop()
+
+    def speak(self, text: str, mode: str = "sync") -> None:
+        """Speak text using specified mode (sync/live)"""
+        if mode == "live":
+            self.speak_live(text)
+        else:  # sync mode
+            from tts.audio_generator import AudioGeneratorSync
+            from tts.audio_player import play_audio
+            import threading
+            
+            if not text.strip():
+                return
+                
+            generator = AudioGeneratorSync(
+                voice_name=self.config.voice_name,
+                speed=self.config.speed,
+                volume=self.config.volume,
+                sample_rate=self.config.sample_rate
+            )
+            
+            try:
+                audio = generator.add_sentence(text)
+                if audio is not None and len(audio) > 0:
+                    event = threading.Event()
+                    play_audio(audio, event, self.config.sample_rate)
+                else:
+                    print(f"Warning: No audio generated for text: {text}")
+            except Exception as e:
+                print(f"Failed to generate/play audio: {str(e)}")
 
     def speak_async(self, text: str, callback: Optional[callable] = None) -> None:
         """Speak text asynchronously with optional callback"""

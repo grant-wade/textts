@@ -91,7 +91,7 @@ def main():
                 logger.info("Processing input from stdin")
                 try:
                     for line in sys.stdin:
-                        engine.speak(line.strip())
+                        engine.speak(line.strip(), mode="live")  # Use live mode for stdin
                 except Exception as e:
                     raise SpeechGenerationError(f"Failed to process stdin: {e}")
                 
@@ -107,7 +107,7 @@ def main():
                 try:
                     with open(args.input_file) as f:
                         for line in f:
-                            engine.speak(line.strip())
+                            engine.speak(line.strip(), mode="live")  # Use live mode for file reading
                 except Exception as e:
                     raise SpeechGenerationError(f"Failed to play audio: {e}")
 
