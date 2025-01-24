@@ -2,13 +2,11 @@
 
 ## Introduction
 
-A text-to-speech audiobook generator that uses Kokoro-82M or Piper TTS for high-quality voice synthesis. Features include:
+A text-to-speech audiobook generator that uses Kokoro-82M for high-quality voice synthesis. Features include:
 
-- Book splitting into manageable pages
-- Progress tracking and resuming
-- Cross-platform support
+- Progress tracking and resuming for playback
+- Cross-platform support (tested on linux)
 - Adjustable playback speed
-- Audio context preservation between pages
 - Save generated audio to WAV files
 
 ## Installation
