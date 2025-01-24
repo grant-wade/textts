@@ -22,11 +22,10 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
         return
 
     selected_voice = voice if voice else voices[0]
-    audio_gen = AudioGenerator(selected_voice)
+    audio_gen = AudioGeneratorSync(selected_voice, speed=speed)
     progress = FileReadingProgress(input_path)
     sentence_stream = stream_sentences(input_path)
     audio_buffer = []
-    total_sentences_sent = 0
 
     try:
         print(f"Generating audio from {os.path.basename(input_path)}")
@@ -39,25 +38,12 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
             next(sentence_stream, None)
             sentence_index += 1
 
-        # Pre-fill the pipeline with more sentences
-        prefill_count = 10  # Increased pre-fill buffer
-        sentences = []
-        for _ in range(prefill_count):
-            sentence = next(sentence_stream, None)
-            if sentence:
-                sentences.append(sentence)
-                audio_gen.add_sentence(sentence)
-                total_sentences_sent += 1
-
-        # Start with the first sentence
-        current_sentence = sentences[0] if sentences else None
-
         # Main audio generation loop
-        while audio_gen.sentence_queue.qsize() > 0 or audio_gen.audio_queue.qsize() > 0:
-            if len(sentences) > 0:
-                sentences.pop(0)
-
+        for sentence in sentence_stream:
+            # Process the sentence synchronously
+            audio_gen.add_sentence(sentence)
             audio = audio_gen.get_audio()
+
             if audio is not None and len(audio) > 0:
                 audio_buffer.append(audio)
                 total_samples += len(audio)
@@ -67,62 +53,18 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
                 elapsed = time.time() - start_time
                 samples_sec = total_samples / elapsed if elapsed > 0 else 0
                 bytes_total = total_samples * 2
-                progress_percent = (
-                    sentences_processed
-                    / (sentences_processed + audio_gen.sentence_queue.qsize())
-                ) * 100
 
                 # Format progress output
                 progress = (
                     f"\rProcessed: {sentences_processed} sentences "
                     f"| Audio: {total_samples//1000}k samples ({bytes_total//1024} KB) "
-                    f"| Speed: {samples_sec//1000:.1f}k samples/s "
-                    f"| Progress: {progress_percent:.1f}%"
+                    f"| Speed: {samples_sec//1000:.1f}k samples/s"
                 )
                 print(progress, end="", flush=True)
 
-            # Get next sentence from stream if available
-            current_sentence = next(sentence_stream, None)
-            if current_sentence:
-                sentences.append(current_sentence)
-                audio_gen.add_sentence(current_sentence)
-                total_sentences_sent += 1
-
-            # Don't spin too fast if queue is empty
-            if len(sentences) == 0 and not audio_gen.stop_event.is_set():
-                time.sleep(0.1)
-
-        # Final wait for all audio to finish with timeout
-        final_wait_start = time.time()
-        timeout_duration = 30.0  # Increased timeout to 30 seconds
-        last_progress_time = time.time()
-        
-        while (sentences_processed < total_sentences_sent or
-               audio_gen.audio_queue.qsize() > 0 or
-               audio_gen.sentence_queue.qsize() > 0 or
-               not audio_gen.processing_complete) and \
-               time.time() - final_wait_start < timeout_duration:
-            
-            # Show progress every second
-            if time.time() - last_progress_time >= 1.0:
-                remaining = total_sentences_sent - sentences_processed
-                print(f"\rWaiting for {remaining} sentences...", end="", flush=True)
-                last_progress_time = time.time()
-
-        print("\n\nStopping audio generator")
-        audio_gen.stop()
-        print("Audio generator stopped")
-
-        # Final buffer flush
-        while audio_gen.audio_queue.qsize() > 0:
-            try:
-                audio = audio_gen.get_audio()
-                if audio is not None and len(audio) > 0:
-                    audio_buffer.append(audio)
-                    total_samples += len(audio)
-                    sentences_processed += 1
-            except queue.Empty:
-                break
+            # Update progress
+            progress.update_progress(sentence_index)
+            sentence_index += 1
 
     except Exception as e:
         print(f"Error generating audio: {e}")
@@ -134,9 +76,6 @@ def generate_audio_from_file(input_path, voice=None, speed=1.0, output_file="out
         print(f"Total sentences: {sentences_processed}")
         print(f"Final audio length: {total_samples/sample_rate:.1f} seconds")
 
-        # Save any remaining audio
+        # Save the final audio
         if audio_buffer:
             save_audio_to_wav(output_file, audio_buffer, sample_rate)
-
-        # Request stop and wait with timeout
-        audio_gen.stop()
