@@ -32,13 +32,14 @@ class TTSEngine:
         """Speak text using async generator for live playback"""
         from tts.audio_generator import AudioGenerator
         import threading
+        import time
         
         if not text.strip():  # Skip empty text
             return
             
         generator = AudioGenerator(
             voice_name=self.config.voice_name,
-            speed=self.config.speed  # Pass speed parameter
+            speed=self.config.speed
         )
         event = threading.Event()
         
@@ -46,22 +47,40 @@ class TTSEngine:
             # Print the text being spoken
             print(f"\nSpeaking: {text}")
             
-            # Add sentence to queue and wait for processing
-            generator.add_sentence(text)
+            # Pre-process text into sentences and queue them
+            sentences = text.split('.')  # Simple sentence splitting
+            sentences = [s.strip() + '.' for s in sentences if s.strip()]
             
-            # Process audio chunks as they become available
-            while generator.is_processing() or not event.is_set():
+            # Queue all sentences for processing
+            for sentence in sentences:
+                generator.add_sentence(sentence)
+                
+            # Process audio chunks with concurrent generation/playback
+            while True:
+                # Check if we're done processing and playing
+                if (generator.processing_complete and 
+                    generator.audio_queue.empty() and 
+                    event.is_set()):
+                    break
+                    
+                # Get and play available audio
                 audio = generator.get_audio()
                 if audio is not None and len(audio) > 0:
                     from tts.audio_player import play_audio
                     play_audio(audio, event, self.config.sample_rate)
-                elif generator.processing_complete and generator.audio_queue.empty():
+                elif not generator.is_processing():
+                    # No more audio to process
                     break
+                else:
+                    # Wait briefly before checking again
+                    time.sleep(0.01)
                     
         except Exception as e:
             print(f"Failed to generate/play audio: {str(e)}")
         finally:
+            # Ensure proper cleanup
             generator.stop()
+            event.set()  # Ensure event is set to prevent hanging
 
     def speak(self, text: str, mode: str = "sync") -> None:
         """Speak text using specified mode (sync/live)"""
