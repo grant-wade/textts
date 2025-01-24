@@ -5,7 +5,15 @@ from tts.voice_utils import get_available_voices
 
 def validate_arguments(args):
     """Validate the provided arguments"""
-    if not os.path.exists(args.input_file):
+    if not args.stdin and not args.input_file:
+        print("Error: Either input_file or --stdin must be provided")
+        sys.exit(1)
+    
+    if args.stdin and args.input_file:
+        print("Error: Cannot use both stdin and input file")
+        sys.exit(1)
+
+    if not args.stdin and not os.path.exists(args.input_file):
         print(f"Error: Input file '{args.input_file}' not found")
         sys.exit(1)
 
@@ -19,6 +27,8 @@ def parse_arguments():
         description="Split book into pages and optionally play them using TTS"
     )
     parser.add_argument("input_file", nargs="?", help="Path to the input text file")
+    parser.add_argument("--stdin", action="store_true",
+                       help="Read input from stdin instead of a file")
     parser.add_argument("--voice", help="Voice to use for TTS (optional)")
     parser.add_argument(
         "--speed",

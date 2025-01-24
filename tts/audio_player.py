@@ -36,6 +36,65 @@ def play_audio(audio, event, sample_rate=22050, return_audio=False):
         return audio
 
 
+def play_from_stdin(voice=None, speed=1.0):
+    """Stream and play text from stdin using TTS"""
+    voices = get_available_voices()
+    if not voices:
+        print("Error: No voices found. Please download voices to:")
+        print(MODELS_DIR)
+        return
+
+    selected_voice = voice if voice else voices[0]
+    audio_gen = AudioGenerator(selected_voice)
+    sample_rate = int(22050 * speed)
+
+    try:
+        # Pre-fill the pipeline
+        sentences = []
+        sentence_stream = stream_from_stdin()
+        
+        # Pre-fill with initial sentences
+        for _ in range(10):  # Pre-fill buffer
+            sentence = next(sentence_stream, None)
+            if sentence:
+                sentences.append(sentence)
+                audio_gen.add_sentence(sentence)
+
+        # Main playback loop
+        stream_exhausted = False
+        while True:
+            # Play available audio
+            audio = audio_gen.get_audio()
+            if audio is not None and len(audio) > 0:
+                played_sentence = sentences.pop(0)
+                print(f"\n{played_sentence}")
+                play_audio(audio, audio_gen.audio_done_event, sample_rate=sample_rate)
+                audio_gen.audio_done_event.wait(10)
+
+            # Get next sentences until queue is full or stream exhausted
+            while not stream_exhausted and audio_gen.sentence_queue.qsize() < 15:
+                sentence = next(sentence_stream, None)
+                if sentence:
+                    sentences.append(sentence)
+                    audio_gen.add_sentence(sentence)
+                else:
+                    stream_exhausted = True
+
+            # Exit condition
+            if stream_exhausted and not audio_gen.is_processing() and len(sentences) == 0:
+                break
+
+            time.sleep(0.1)
+
+    except KeyboardInterrupt:
+        print("\nStopping playback...")
+    except Exception as e:
+        print(f"Error playing from stdin: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        audio_gen.stop()
+
 def play_book(input_path, voice=None, speed=1.0, save_audio=False):
     # Set up audio saving if requested
     audio_buffer = []

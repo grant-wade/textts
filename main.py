@@ -19,13 +19,15 @@ def main():
             print(f"No voices found. Please download voices to: {MODELS_DIR}")
         sys.exit(0)
 
-    if not args.list_voices and not args.input_file:
-        sys.exit("Error: the following arguments are required: input_file")
+    if not args.list_voices and not args.input_file and not args.stdin:
+        sys.exit("Error: either input_file or --stdin is required")
 
     if not args.list_voices:
         validate_arguments(args)
 
-        if args.generate_audio:
+        if args.stdin:
+            play_from_stdin(args.voice, args.speed)
+        elif args.generate_audio:
             generate_audio_from_file(
                 args.input_file, args.voice, args.speed, args.generate_audio
             )

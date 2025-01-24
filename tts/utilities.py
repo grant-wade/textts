@@ -1,4 +1,5 @@
 import re
+import sys
 import wave
 import numpy as np
 from pathlib import Path
@@ -21,6 +22,27 @@ def stream_sentences(input_path):
                     yield cleaned
         if buffer.strip():
             yield re.sub(r"\n+", " ", buffer.strip())
+
+def stream_from_stdin():
+    """Stream text from stdin until EOF"""
+    buffer = ""
+    while True:
+        try:
+            line = sys.stdin.readline()
+            if not line:  # EOF reached
+                if buffer.strip():
+                    yield re.sub(r"\n+", " ", buffer.strip())
+                break
+            buffer += line
+            sentences = re.split(r"(?<=[.!?])\s+", buffer)
+            if len(sentences) > 1:
+                buffer = sentences.pop()
+                for sentence in sentences:
+                    if sentence.strip():
+                        cleaned = re.sub(r"\n+", " ", sentence.strip())
+                        yield cleaned
+        except KeyboardInterrupt:
+            break
 
 def save_audio_to_wav(output_file, audio_buffer, sample_rate):
     """Save audio buffer to a WAV file"""
