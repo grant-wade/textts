@@ -7,7 +7,7 @@ from utils.progress_tracker import FileReadingProgress
 from tts.audio_generator import AudioGenerator
 from config.settings import MODELS_DIR
 from tts.voice_utils import get_available_voices
-from tts.utilities import stream_sentences, save_audio_to_wav
+from tts.utilities import stream_sentences, save_audio_to_wav, stream_from_stdin
 
 def play_audio(audio, event, sample_rate=22050, return_audio=False):
     """Play audio array using sounddevice"""

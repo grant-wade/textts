@@ -1,5 +1,5 @@
 import sys
-from tts.audio_player import play_book
+from tts.audio_player import play_book, play_from_stdin
 from tts.audio_processor import generate_audio_from_file
 from utils.arg_parser import parse_arguments, validate_arguments
 from config.settings import MODELS_DIR
