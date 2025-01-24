@@ -21,25 +21,38 @@ class TTSEngine:
         from tts.voice_utils import get_available_voices
         self.available_voices = get_available_voices()
         
+        # Set default voice if none specified
+        if self.config.voice_name is None:
+            if self.available_voices:
+                self.config.voice_name = self.available_voices[0]
+            else:
+                raise ValueError("No voices available. Please download voices first.")
+        
     def speak(self, text: str) -> None:
         """Speak text synchronously"""
         from tts.audio_generator import AudioGeneratorSync
         from tts.audio_player import play_audio
         import threading
         
+        if not text.strip():  # Skip empty text
+            return
+            
         generator = AudioGeneratorSync(
-            voice_name=self.config.voice_name,
+            voice_name=self.config.voice_name,  # This should now always have a valid voice
             speed=self.config.speed,
             volume=self.config.volume,
             sample_rate=self.config.sample_rate
         )
         
-        audio = generator.add_sentence(text)
-        if audio is not None and len(audio) > 0:
-            event = threading.Event()  # Create an event for synchronization
-            play_audio(audio, event, self.config.sample_rate)
-        else:
-            print(f"Warning: No audio generated for text: {text}")
+        try:
+            audio = generator.add_sentence(text)
+            if audio is not None and len(audio) > 0:
+                event = threading.Event()
+                play_audio(audio, event, self.config.sample_rate)
+            else:
+                print(f"Warning: No audio generated for text: {text}")
+        except Exception as e:
+            print(f"Failed to generate/play audio: {str(e)}")
 
     def speak_async(self, text: str, callback: Optional[callable] = None) -> None:
         """Speak text asynchronously with optional callback"""
