@@ -25,14 +25,21 @@ class TTSEngine:
         """Speak text synchronously"""
         from tts.audio_generator import AudioGeneratorSync
         from tts.audio_player import play_audio
+        import threading
+        
         generator = AudioGeneratorSync(
             voice_name=self.config.voice_name,
             speed=self.config.speed,
             volume=self.config.volume,
             sample_rate=self.config.sample_rate
         )
+        
         audio = generator.add_sentence(text)
-        play_audio(audio, None, self.config.sample_rate)
+        if audio is not None and len(audio) > 0:
+            event = threading.Event()  # Create an event for synchronization
+            play_audio(audio, event, self.config.sample_rate)
+        else:
+            print(f"Warning: No audio generated for text: {text}")
 
     def speak_async(self, text: str, callback: Optional[callable] = None) -> None:
         """Speak text asynchronously with optional callback"""
