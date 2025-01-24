@@ -184,8 +184,10 @@ class AudioGeneratorSync(BaseAudioGenerator):
 
         if audio_chunks:
             self.current_audio = np.concatenate(audio_chunks)
+            return self.current_audio
         else:
             self.current_audio = None
+            return None
 
     def get_audio(self):
         """Get the generated audio data"""
