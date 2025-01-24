@@ -12,6 +12,34 @@ class BaseAudioGenerator:
         self.speed = speed
         self.sess = InferenceSession("kokoro/kokoro-v0_19.onnx")
 
+    def _split_sentence(self, sentence, max_len=400):
+        """Split sentences at reasonable boundaries while preserving meaning"""
+        parts = []
+        current = sentence.strip()
+
+        while len(current) > max_len:
+            # Prefer to split at sentence boundaries first
+            split_pos = max(
+                current.rfind(". ", 0, max_len),
+                current.rfind("? ", 0, max_len),
+                current.rfind("! ", 0, max_len),
+            )
+
+            # If no sentence boundary found, look for other whitespace
+            if split_pos == -1:
+                split_pos = current.rfind(" ", 0, max_len)
+
+            # If no whitespace at all, force split
+            if split_pos == -1:
+                split_pos = max_len
+
+            parts.append(current[: split_pos + 1].strip())
+            current = current[split_pos + 1 :].lstrip()
+
+        if current:
+            parts.append(current)
+
+        return parts
 
     def _generate_audio_for_part(self, part):
         """Generate audio for a single text part"""
@@ -80,35 +108,6 @@ class AudioGenerator(BaseAudioGenerator):
             except Exception as e:
                 print(f"Error processing sentence: {e}")
                 self.processing_complete = True
-
-    def _split_sentence(self, sentence, max_len=400):
-        """Split sentences at reasonable boundaries while preserving meaning"""
-        parts = []
-        current = sentence.strip()
-
-        while len(current) > max_len:
-            # Prefer to split at sentence boundaries first
-            split_pos = max(
-                current.rfind(". ", 0, max_len),
-                current.rfind("? ", 0, max_len),
-                current.rfind("! ", 0, max_len),
-            )
-
-            # If no sentence boundary found, look for other whitespace
-            if split_pos == -1:
-                split_pos = current.rfind(" ", 0, max_len)
-
-            # If no whitespace at all, force split
-            if split_pos == -1:
-                split_pos = max_len
-
-            parts.append(current[: split_pos + 1].strip())
-            current = current[split_pos + 1 :].lstrip()
-
-        if current:
-            parts.append(current)
-
-        return parts
 
     def add_sentence(self, sentence):
         """Add a sentence to be processed"""
