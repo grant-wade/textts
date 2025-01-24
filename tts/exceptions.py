@@ -13,3 +13,7 @@ class EngineInitializationError(TTSException):
 class SpeechGenerationError(TTSException):
     """Failed to generate speech"""
     pass
+
+class AudioPlaybackError(TTSException):
+    """Failed to play audio"""
+    pass

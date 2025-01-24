@@ -12,7 +12,7 @@ from tts.voice_utils import get_available_voices
 from utils.logger import setup_logger
 from tts.exceptions import (
     TTSException, ConfigurationError, EngineInitializationError,
-    SpeechGenerationError
+    SpeechGenerationError, AudioPlaybackError
 )
 
 logger = setup_logger()
@@ -115,7 +115,7 @@ def main():
         logger.info("\nProcess interrupted by user")
         sys.exit(1)
         
-    except TTSError as e:
+    except TTSException as e:
         logger.error(str(e))
         logger.debug("Detailed error:", exc_info=True)
         sys.exit(1)
