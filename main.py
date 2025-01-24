@@ -4,15 +4,15 @@ import logging
 from pathlib import Path
 from contextlib import contextmanager
 
-from tts.audio_player import play_book, play_from_stdin
-from tts.audio_processor import generate_audio_from_file
+from tts.engine import TTSEngine, TTSConfig
+from tts.audio_player import play_audio
 from utils.arg_parser import parse_arguments, validate_arguments
 from config.settings import MODELS_DIR
 from tts.voice_utils import get_available_voices
 from utils.logger import setup_logger
-from exceptions import (
-    TTSError, VoiceNotFoundError, InputFileError, 
-    AudioProcessingError, AudioPlaybackError, StdinProcessingError
+from tts.exceptions import (
+    TTSException, ConfigurationError, EngineInitializationError,
+    SpeechGenerationError
 )
 
 logger = setup_logger()
@@ -78,30 +78,38 @@ def main():
             logger.error(str(e))
             sys.exit(1)
 
+        # Create TTS engine
+        config = TTSConfig(
+            voice_name=args.voice,
+            speed=args.speed
+        )
+        engine = TTSEngine(config)
+
         # Main processing
         with resource_cleanup():
             if args.stdin:
                 logger.info("Processing input from stdin")
                 try:
-                    play_from_stdin(args.voice, args.speed)
+                    for line in sys.stdin:
+                        engine.speak(line.strip())
                 except Exception as e:
-                    raise StdinProcessingError(f"Failed to process stdin: {e}")
+                    raise SpeechGenerationError(f"Failed to process stdin: {e}")
                 
             elif args.generate_audio:
                 logger.info(f"Generating audio file: {args.generate_audio}")
                 try:
-                    generate_audio_from_file(
-                        args.input_file, args.voice, args.speed, args.generate_audio
-                    )
+                    engine.save_to_file(args.input_file, args.generate_audio)
                 except Exception as e:
-                    raise AudioProcessingError(f"Failed to generate audio: {e}")
+                    raise SpeechGenerationError(f"Failed to generate audio: {e}")
                 
             else:
                 logger.info(f"Playing audio from file: {args.input_file}")
                 try:
-                    play_book(args.input_file, args.voice, args.speed, args.save_audio)
+                    with open(args.input_file) as f:
+                        for line in f:
+                            engine.speak(line.strip())
                 except Exception as e:
-                    raise AudioPlaybackError(f"Failed to play audio: {e}")
+                    raise SpeechGenerationError(f"Failed to play audio: {e}")
 
     except KeyboardInterrupt:
         logger.info("\nProcess interrupted by user")
