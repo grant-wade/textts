@@ -9,27 +9,6 @@ from contextlib import contextmanager
 from onnxruntime import InferenceSession
 from kokoro.kokoro import phonemize, tokenize
 
-@contextmanager
-def suppress_stdout():
-    """Temporarily suppress stdout"""
-    with open(os.devnull, "w") as devnull:
-        old_stdout = sys.stdout
-        sys.stdout = devnull
-        try:
-            yield
-        finally:
-            sys.stdout = old_stdout
-
-@contextmanager
-def supress_stderr():
-    with open(os.devnull, "w") as devnull:
-        old_stderr = sys.stderr
-        sys.stderr = devnull
-        try:
-            yield
-        finally:
-            sys.stderr = old_stderr
-        
 
 class BaseAudioGenerator:
     def __init__(self, voice_name, speed=1.0):
@@ -68,24 +47,22 @@ class BaseAudioGenerator:
 
     def _generate_audio_for_part(self, part):
         """Generate audio for a single text part"""
-        with suppress_stdout():
-            phonemes = phonemize(part, self.voice_name[0])
-            tokens = tokenize(phonemes)
+        phonemes = phonemize(part, self.voice_name[0])
+        tokens = tokenize(phonemes)
 
-            if tokens:
-                ref_s = torch.load(
-                    f"kokoro/voices/{self.voice_name}.pt", weights_only=True
-                )[len(tokens)].numpy()
-                print(f"Token Count w/ Padding: {len(tokens) + 2}")
-                tokens = [[0, *tokens, 0]]
-                return self.sess.run(
-                    None,
-                    dict(
-                        tokens=tokens, 
-                        style=ref_s, 
-                        speed=np.ones(1, np.float32) * self.speed
-                    ),
-                )[0]
+        if tokens:
+            ref_s = torch.load(
+                f"kokoro/voices/{self.voice_name}.pt", weights_only=True
+            )[len(tokens)].numpy()
+            tokens = [[0, *tokens, 0]]
+            return self.sess.run(
+                None,
+                dict(
+                    tokens=tokens, 
+                    style=ref_s, 
+                    speed=np.ones(1, np.float32) * self.speed
+                ),
+            )[0]
         return None
 
 
