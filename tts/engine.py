@@ -40,6 +40,9 @@ class TTSEngine:
         event = threading.Event()
         
         try:
+            # Print the text being spoken
+            print(f"\nSpeaking: {text}")
+            
             # Add sentence to queue
             generator.add_sentence(text)
             
